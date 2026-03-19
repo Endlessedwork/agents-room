@@ -12,19 +12,19 @@ Agents must be able to have meaningful conversations with each other that produc
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Configurable AI agents with custom roles/personas per room — Validated in Phase 1: Foundation
+- [x] Multi-provider LLM support (Claude, GPT, Gemini, etc.) — Validated in Phase 1: Foundation
+- [x] Agents converse autonomously once given a topic — Validated in Phase 2: Conversation Engine
+- [x] User can control agents (start, stop, redirect conversation) — Validated in Phase 2: Conversation Engine
+- [x] Conversation history persisted per room — Validated in Phase 2: Conversation Engine
 
 ### Active
 
 - [ ] Multiple chat rooms, each with its own topic/purpose
-- [ ] Configurable AI agents with custom roles/personas per room
-- [ ] Multi-provider LLM support (Claude, GPT, Gemini, etc.)
-- [ ] Agents converse autonomously once given a topic
+- [ ] Multiple chat rooms, each with its own topic/purpose
 - [ ] User can also initiate/open topics for agents to discuss
 - [ ] Real-time message display as agents converse
 - [ ] User can type messages into the room to participate
-- [ ] User can control agents (start, stop, redirect conversation)
-- [ ] Conversation history persisted per room
 - [ ] Quality conversations that surface insights and solve problems
 
 ### Out of Scope
@@ -57,4 +57,4 @@ Agents must be able to have meaningful conversations with each other that produc
 | Single-user focus | Simplifies auth/permissions, faster to ship | — Pending |
 
 ---
-*Last updated: 2026-03-19 after initialization*
+*Last updated: 2026-03-20 after Phase 2 completion — conversation engine operational*
