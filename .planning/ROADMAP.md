@@ -32,10 +32,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Bootstrap Next.js 16 project, Drizzle SQLite schema, test infrastructure
-- [ ] 01-02-PLAN.md — LLM gateway: unified streaming interface over 5 providers
-- [ ] 01-03-PLAN.md — REST API routes for rooms, agents, providers, and room-agent assignment
-- [ ] 01-04-PLAN.md — Management UI: sidebar layout, room wizard, agent library, settings page
+- [x] 01-01-PLAN.md — Bootstrap Next.js 16 project, Drizzle SQLite schema, test infrastructure
+- [x] 01-02-PLAN.md — LLM gateway: unified streaming interface over 5 providers
+- [x] 01-03-PLAN.md — REST API routes for rooms, agents, providers, and room-agent assignment
+- [x] 01-04-PLAN.md — Management UI: sidebar layout, room wizard, agent library, settings page
 
 ### Phase 2: Conversation Engine
 **Goal**: Agents converse autonomously with full cost and quality safeguards enforced from the first run, verifiable via CLI without any UI
@@ -47,12 +47,12 @@ Plans:
   3. Speaker selection operates in both round-robin and LLM-selected modes, configurable per room
   4. Context sent to each agent uses a sliding window — token counts do not grow unboundedly as conversation length increases
   5. System auto-pauses and emits a warning when agent responses are detected as repetitive; all messages persist with sender, timestamp, model, and token count across server restarts
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Conversation Manager — sequential turn loop, start/pause/stop state machine, configurable turn limit
-- [ ] 02-02: Context Service — sliding window assembly, token accumulator, circuit breaker
-- [ ] 02-03: Speaker selection strategy (round-robin and LLM-selected), cycle detection, message persistence
+- [ ] 02-01-PLAN.md — Schema migration, ContextService (sliding window + repetition detection), SpeakerSelector (round-robin + LLM-selected)
+- [ ] 02-02-PLAN.md — ConversationManager: turn loop, state machine, AbortController lifecycle, message persistence
+- [ ] 02-03-PLAN.md — REST endpoints for conversation control (start/pause/stop/resume) and CLI smoke test
 
 ### Phase 3: Real-Time UI
 **Goal**: Users watch agents think and respond live in a browser chat interface, and can type messages into the running conversation
