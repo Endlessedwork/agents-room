@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:providers": "npx tsx scripts/test-providers.ts",
+    "test:conversation": "npx tsx scripts/test-conversation.ts",
     "db:seed": "npx tsx src/db/seed.ts"
   },
   "dependencies": {
