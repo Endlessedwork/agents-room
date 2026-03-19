@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-conversation-engine 02-02-PLAN.md
-last_updated: "2026-03-19T20:35:14.049Z"
+stopped_at: Completed 02-conversation-engine 02-03-PLAN.md
+last_updated: "2026-03-19T20:40:47.619Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Plan: 2 of 3
 | Phase 01-foundation P04 | 9 | 2 tasks | 27 files |
 | Phase 02-conversation-engine P01 | 3 | 3 tasks | 6 files |
 | Phase 02-conversation-engine P02 | 5 | 1 tasks | 2 files |
+| Phase 02-conversation-engine P03 | 10 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 02-conversation-engine]: SpeakerSelector falls back to round-robin on ANY LLM error or invalid index — maintains conversation liveness
 - [Phase 02-conversation-engine]: Sentinel AbortController registered at start() entry before IIFE launch prevents double-start race condition
 - [Phase 02-conversation-engine]: ConversationManager.resume counts only role='agent' messages to calculate remaining turns accurately
+- [Phase 02-conversation-engine]: Routes pass db singleton explicitly to ConversationManager — plan omitted db arg but manager requires it (dependency injection)
+- [Phase 02-conversation-engine]: start/resume endpoints fire-and-forget at HTTP level (return 200 immediately); pause/stop await synchronous state change
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T20:35:14.046Z
-Stopped at: Completed 02-conversation-engine 02-02-PLAN.md
+Last session: 2026-03-19T20:40:47.616Z
+Stopped at: Completed 02-conversation-engine 02-03-PLAN.md
 Resume file: None
