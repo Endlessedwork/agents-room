@@ -1,0 +1,108 @@
+# Requirements: Agents Room
+
+**Defined:** 2026-03-19
+**Core Value:** Agents must have meaningful conversations that produce genuinely useful insights and solutions
+
+## v1 Requirements
+
+Requirements for initial release. Each maps to roadmap phases.
+
+### Room Management
+
+- [ ] **ROOM-01**: User can create a new room with a name and optional topic description
+- [ ] **ROOM-02**: User can view a list of all rooms with their status
+- [ ] **ROOM-03**: User can delete a room and its conversation history
+- [ ] **ROOM-04**: User can open a room and see its full conversation history
+
+### Agent Configuration
+
+- [ ] **AGNT-01**: User can create an agent with a name, persona/role, and system prompt
+- [ ] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
+- [ ] **AGNT-03**: User can add/remove agents from a room
+- [ ] **AGNT-04**: User can set a configurable turn limit per conversation session
+- [ ] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
+
+### Conversation Engine
+
+- [ ] **CONV-01**: Agents converse autonomously once a topic is given, taking sequential turns
+- [ ] **CONV-02**: User can start, pause, and stop a conversation at any time
+- [ ] **CONV-03**: Context window is managed via sliding window to prevent token cost explosion
+- [ ] **CONV-04**: System detects when agents are repeating themselves and auto-pauses with a warning
+- [ ] **CONV-05**: All messages are persisted with sender, timestamp, model used, and token count
+
+### Real-Time UI
+
+- [ ] **RTUI-01**: Messages stream in real-time as agents generate tokens (SSE)
+- [ ] **RTUI-02**: Each agent shows a "thinking" indicator while generating a response
+- [ ] **RTUI-03**: User can type and send messages into the conversation mid-flow
+- [ ] **RTUI-04**: Chat interface displays agent name, role badge, and model used per message
+
+### Insights & Export
+
+- [ ] **INSI-01**: User can view token usage and estimated cost per room
+- [ ] **INSI-02**: User can generate an LLM-powered summary of a conversation on demand
+- [ ] **INSI-03**: User can export a conversation as Markdown or JSON
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Conversation Quality
+
+- **QUAL-01**: Independent parallel first round (agents respond independently before seeing each other's output)
+- **QUAL-02**: Asymmetric context injection (different source documents per agent)
+- **QUAL-03**: Convergence detection (auto-stop when agents reach consensus)
+
+### Advanced Features
+
+- **ADVN-01**: Redirect injection (change topic mid-conversation via dedicated input)
+- **ADVN-02**: Conversation replay / scrubbing (watch past conversations play back)
+- **ADVN-03**: Agent long-term memory across rooms (vector-based retrieval)
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Multi-user / team collaboration | Personal tool — single user; adds auth, permissions, presence complexity |
+| Mobile native app | Web-first; responsive web UI works on mobile browser |
+| Voice / audio input-output | Separate engineering domain; text-only for v1 |
+| Agent tool use / code execution | Sandboxing complexity; conversation-focused first |
+| Agent-driven web search (live RAG) | Multiplies latency/cost; user pastes context manually |
+| Real-time keystroke streaming | Inflates token cost; standard SSE token streaming sufficient |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ROOM-01 | — | Pending |
+| ROOM-02 | — | Pending |
+| ROOM-03 | — | Pending |
+| ROOM-04 | — | Pending |
+| AGNT-01 | — | Pending |
+| AGNT-02 | — | Pending |
+| AGNT-03 | — | Pending |
+| AGNT-04 | — | Pending |
+| AGNT-05 | — | Pending |
+| CONV-01 | — | Pending |
+| CONV-02 | — | Pending |
+| CONV-03 | — | Pending |
+| CONV-04 | — | Pending |
+| CONV-05 | — | Pending |
+| RTUI-01 | — | Pending |
+| RTUI-02 | — | Pending |
+| RTUI-03 | — | Pending |
+| RTUI-04 | — | Pending |
+| INSI-01 | — | Pending |
+| INSI-02 | — | Pending |
+| INSI-03 | — | Pending |
+
+**Coverage:**
+- v1 requirements: 21 total
+- Mapped to phases: 0
+- Unmapped: 21 ⚠️
+
+---
+*Requirements defined: 2026-03-19*
+*Last updated: 2026-03-19 after initial definition*
