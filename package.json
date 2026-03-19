@@ -1,0 +1,46 @@
+{
+  "name": "agents-room",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:providers": "npx tsx scripts/test-providers.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/google": "^3.0.43",
+    "@ai-sdk/openai": "^3.0.41",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "ai": "^6.0.116",
+    "better-sqlite3": "^12.8.0",
+    "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.45.1",
+    "nanoid": "^5.1.7",
+    "next": "^16.2.0",
+    "ollama-ai-provider-v2": "^3.5.0",
+    "postcss": "^8.5.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.0"
+  }
+}
