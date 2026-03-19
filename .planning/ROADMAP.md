@@ -50,9 +50,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Schema migration, ContextService (sliding window + repetition detection), SpeakerSelector (round-robin + LLM-selected)
-- [ ] 02-02-PLAN.md — ConversationManager: turn loop, state machine, AbortController lifecycle, message persistence
-- [ ] 02-03-PLAN.md — REST endpoints for conversation control (start/pause/stop/resume) and CLI smoke test
+- [x] 02-01-PLAN.md — Schema migration, ContextService (sliding window + repetition detection), SpeakerSelector (round-robin + LLM-selected)
+- [x] 02-02-PLAN.md — ConversationManager: turn loop, state machine, AbortController lifecycle, message persistence
+- [x] 02-03-PLAN.md — REST endpoints for conversation control (start/pause/stop/resume) and CLI smoke test
 
 ### Phase 3: Real-Time UI
 **Goal**: Users watch agents think and respond live in a browser chat interface, and can type messages into the running conversation
@@ -63,12 +63,12 @@ Plans:
   2. The active agent shows a "thinking" indicator before its response begins; the indicator clears when the response completes
   3. User can type and send a message mid-conversation and it enters the agent context on the next turn
   4. Each message displays the agent name, role badge, and model used; agents are visually distinct from one another
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: SSE streaming endpoint — token chunks and turn events from Conversation Manager to browser
-- [ ] 03-02: Chat View — live message feed, per-agent identity display, thinking indicators
-- [ ] 03-03: User message injection and Stop/Pause controls in the UI
+- [ ] 03-01-PLAN.md — SSE backend: StreamRegistry bridge, ConversationManager emission points, SSE endpoint, user message API
+- [ ] 03-02-PLAN.md — Chat UI: Zustand chatStore, EventSource hook, message components, header controls, smart scroll
+- [ ] 03-03-PLAN.md — Human verification: end-to-end live streaming chat experience
 
 ### Phase 4: Insights
 **Goal**: Users can see what conversations cost, request summaries on demand, and export conversation content for use outside the tool
@@ -88,7 +88,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
