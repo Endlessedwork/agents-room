@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-foundation 01-01-PLAN.md
-last_updated: "2026-03-19T18:44:58.016Z"
+stopped_at: Completed 01-foundation 01-02-PLAN.md
+last_updated: "2026-03-19T18:45:31.807Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -47,6 +47,7 @@ Plan: 3 of 4
 
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 9 | 2 tasks | 18 files |
+| Phase 01-foundation P02 | 35 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: Copy-on-assign for room_agents: full column copy at assignment time, not FK join
 - [Phase 01-foundation]: Structured prompt fields stored as separate DB columns (promptRole, promptPersonality, promptRules, promptConstraints)
 - [Phase 01-foundation]: SQLite WAL mode + foreign_keys ON set in DB singleton — tests use createTestDb() in-memory fixture
+- [Phase 01-foundation]: LLM Gateway: apiKeys passed explicitly to provider factories (config.apiKey!) — no env var fallback; providers constructed at call time, not at module load
+- [Phase 01-foundation]: LLM Gateway: streamLLM() returns streamText result; generateLLM() returns result.text string; unified LLMRequest interface used for all gateway calls
 
 ### Pending Todos
 
@@ -74,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:44:58.014Z
-Stopped at: Completed 01-foundation 01-01-PLAN.md
+Last session: 2026-03-19T18:45:27.508Z
+Stopped at: Completed 01-foundation 01-02-PLAN.md
 Resume file: None

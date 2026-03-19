@@ -17,7 +17,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Agent Configuration
 
 - [x] **AGNT-01**: User can create an agent with a name, persona/role, and system prompt
-- [ ] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
+- [x] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
 - [x] **AGNT-03**: User can add/remove agents from a room
 - [ ] **AGNT-04**: User can set a configurable turn limit per conversation session
 - [ ] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
@@ -81,7 +81,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ROOM-03 | Phase 1 | Complete |
 | ROOM-04 | Phase 1 | Complete |
 | AGNT-01 | Phase 1 | Complete |
-| AGNT-02 | Phase 1 | Pending |
+| AGNT-02 | Phase 1 | Complete |
 | AGNT-03 | Phase 1 | Complete |
 | AGNT-04 | Phase 2 | Pending |
 | AGNT-05 | Phase 2 | Pending |
