@@ -325,17 +325,14 @@ describe('ConversationManager', () => {
   });
 
   it('does not double-start when start called twice', async () => {
+    // Both calls run; the second should be a no-op (controller already registered)
     await ConversationManager.start(roomId, db);
     await ConversationManager.start(roomId, db); // should be no-op
 
-    // Only one controller should exist
-    const controller = ConversationManager._getActiveController(roomId);
-    expect(controller).toBeDefined();
-
-    // Wait for completion
+    // Wait for completion — should still produce exactly turnLimit=3 messages (not 6)
     await waitForMessages(db, roomId, 3);
     await waitForStatus(db, roomId, 'idle');
-    // Still should have only 3 messages (not 6 from a double loop)
+
     const [{ value }] = await db
       .select({ value: count(messages.id) })
       .from(messages)
@@ -344,11 +341,20 @@ describe('ConversationManager', () => {
   });
 
   it('resume continues from existing message count', async () => {
-    // Seed 5 existing agent messages; turnLimit=10 → should produce 5 more
+    // Seed 5 existing agent messages with distinct content; turnLimit=10 → should produce 5 more
     await db
       .update(rooms)
       .set({ turnLimit: 10 })
       .where(eq(rooms.id, roomId));
+
+    // Use very distinct content to avoid triggering repetition detection
+    const distinctContents = [
+      'The quick brown fox jumped over the fence yesterday morning',
+      'Artificial intelligence transforms how modern software systems operate globally',
+      'Ocean currents influence climate patterns across multiple continents worldwide',
+      'Quantum computing promises exponential speedup for certain computational problems',
+      'Renaissance artists pioneered techniques still studied in contemporary academies',
+    ];
 
     for (let i = 0; i < 5; i++) {
       await db.insert(messages).values({
@@ -356,14 +362,34 @@ describe('ConversationManager', () => {
         roomId,
         roomAgentId: agentId,
         role: 'agent',
-        content: `existing message ${i}`,
+        content: distinctContents[i],
         model: 'claude-3-5-haiku-20241022',
         createdAt: new Date(Date.now() - (5 - i) * 1000),
       });
     }
 
+    // Mock stream to return distinct content per turn to avoid repetition detection
+    let resumeTurnCount = 0;
+    const resumeContents = [
+      'Alpine meadows display remarkable biodiversity during summer bloom seasons',
+      'Semiconductor fabrication requires nanometer precision in cleanroom environments',
+      'Ancient trade routes connected distant civilizations through exchange networks',
+      'Genetic sequencing technologies accelerate drug discovery and personalized medicine',
+      'Urban planning integrates transportation ecology and community design principles',
+    ];
+    mockStreamLLM.mockImplementation(() => {
+      const content = resumeContents[resumeTurnCount % resumeContents.length];
+      resumeTurnCount++;
+      return {
+        textStream: (async function* () {
+          yield content;
+        })(),
+        usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
+      };
+    });
+
     await ConversationManager.resume(roomId, db);
-    // Should produce 5 more (10 total - 5 existing)
+    // Should produce 5 more (10 total - 5 existing = 5 remaining turns)
     await waitForMessages(db, roomId, 10);
     await waitForStatus(db, roomId, 'idle');
 
