@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { Sarabun, Geist } from "next/font/google";
+import { Sarabun } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const sarabun = Sarabun({
+  subsets: ['latin', 'thai'],
+  weight: ['400', '600'],
+  variable: '--font-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: "Agents Room",
@@ -18,7 +23,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", "font-sans", geist.variable)}
+      className={cn("h-full", "antialiased", "font-sans", sarabun.variable)}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
