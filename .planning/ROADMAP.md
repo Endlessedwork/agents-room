@@ -29,12 +29,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can open a room and see its full (empty) conversation history panel
   4. User can create an agent with a name, persona/role, system prompt, and an assigned LLM provider and model (Claude, GPT, or Gemini)
   5. User can add and remove agents from a room; a CLI test confirms streaming responses from all three providers via the same gateway interface
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: Database schema and migrations (rooms, agents, messages tables via Drizzle + SQLite)
-- [ ] 01-02: LLM gateway — unified streaming interface over Claude, GPT, and Gemini
-- [ ] 01-03: Room and agent CRUD — REST API and management UI
+- [ ] 01-01-PLAN.md — Bootstrap Next.js 16 project, Drizzle SQLite schema, test infrastructure
+- [ ] 01-02-PLAN.md — LLM gateway: unified streaming interface over 5 providers
+- [ ] 01-03-PLAN.md — REST API routes for rooms, agents, providers, and room-agent assignment
+- [ ] 01-04-PLAN.md — Management UI: sidebar layout, room wizard, agent library, settings page
 
 ### Phase 2: Conversation Engine
 **Goal**: Agents converse autonomously with full cost and quality safeguards enforced from the first run, verifiable via CLI without any UI
@@ -91,7 +92,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
+| 1. Foundation | 0/4 | Not started | - |
 | 2. Conversation Engine | 0/3 | Not started | - |
 | 3. Real-Time UI | 0/3 | Not started | - |
 | 4. Insights | 0/3 | Not started | - |
