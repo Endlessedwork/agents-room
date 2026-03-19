@@ -138,3 +138,17 @@ The CLI script `npx tsx scripts/test-providers.ts` optionally accepts API keys v
 ---
 *Phase: 01-foundation*
 *Completed: 2026-03-20*
+
+## Self-Check: PASSED
+
+All created files verified present:
+- FOUND: src/lib/llm/providers.ts
+- FOUND: src/lib/llm/gateway.ts
+- FOUND: tests/llm/gateway.test.ts
+- FOUND: scripts/test-providers.ts
+- FOUND: .planning/phases/01-foundation/01-02-SUMMARY.md
+
+All task commits verified present:
+- FOUND: 5c6ba88 test(01-02): add failing tests for LLM gateway and provider registry
+- FOUND: 9f4140e feat(01-02): implement LLM gateway with provider factory registry
+- FOUND: 00ee866 feat(01-02): create CLI integration test script for all 5 providers
