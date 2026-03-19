@@ -19,16 +19,16 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **AGNT-01**: User can create an agent with a name, persona/role, and system prompt
 - [x] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
 - [x] **AGNT-03**: User can add/remove agents from a room
-- [ ] **AGNT-04**: User can set a configurable turn limit per conversation session
+- [x] **AGNT-04**: User can set a configurable turn limit per conversation session
 - [x] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
 
 ### Conversation Engine
 
-- [ ] **CONV-01**: Agents converse autonomously once a topic is given, taking sequential turns
-- [ ] **CONV-02**: User can start, pause, and stop a conversation at any time
+- [x] **CONV-01**: Agents converse autonomously once a topic is given, taking sequential turns
+- [x] **CONV-02**: User can start, pause, and stop a conversation at any time
 - [x] **CONV-03**: Context window is managed via sliding window to prevent token cost explosion
 - [x] **CONV-04**: System detects when agents are repeating themselves and auto-pauses with a warning
-- [ ] **CONV-05**: All messages are persisted with sender, timestamp, model used, and token count
+- [x] **CONV-05**: All messages are persisted with sender, timestamp, model used, and token count
 
 ### Real-Time UI
 
@@ -83,13 +83,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-01 | Phase 1 | Complete |
 | AGNT-02 | Phase 1 | Complete |
 | AGNT-03 | Phase 1 | Complete |
-| AGNT-04 | Phase 2 | Pending |
+| AGNT-04 | Phase 2 | Complete |
 | AGNT-05 | Phase 2 | Complete |
-| CONV-01 | Phase 2 | Pending |
-| CONV-02 | Phase 2 | Pending |
+| CONV-01 | Phase 2 | Complete |
+| CONV-02 | Phase 2 | Complete |
 | CONV-03 | Phase 2 | Complete |
 | CONV-04 | Phase 2 | Complete |
-| CONV-05 | Phase 2 | Pending |
+| CONV-05 | Phase 2 | Complete |
 | RTUI-01 | Phase 3 | Pending |
 | RTUI-02 | Phase 3 | Pending |
 | RTUI-03 | Phase 3 | Pending |
