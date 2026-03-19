@@ -33,3 +33,7 @@ export const saveProviderKeySchema = z.object({
   apiKey: z.string().optional(),
   baseUrl: z.string().url().optional(),
 });
+
+export const startConversationSchema = z.object({
+  topic: z.string().min(1).max(1000).optional(),
+});
