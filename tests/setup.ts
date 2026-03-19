@@ -15,6 +15,8 @@ export function createTestDb() {
       name TEXT NOT NULL,
       topic TEXT,
       status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle', 'running', 'paused')),
+      turn_limit INTEGER NOT NULL DEFAULT 20,
+      speaker_strategy TEXT NOT NULL DEFAULT 'round-robin' CHECK(speaker_strategy IN ('round-robin', 'llm-selected')),
       last_activity_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     )

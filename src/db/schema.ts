@@ -32,6 +32,12 @@ export const rooms = sqliteTable('rooms', {
   status: text('status', { enum: ['idle', 'running', 'paused'] })
     .notNull()
     .default('idle'),
+  turnLimit: integer('turn_limit').notNull().default(20),
+  speakerStrategy: text('speaker_strategy', {
+    enum: ['round-robin', 'llm-selected'],
+  })
+    .notNull()
+    .default('round-robin'),
   lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
