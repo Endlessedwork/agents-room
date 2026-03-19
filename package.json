@@ -10,7 +10,8 @@
     "format": "biome format --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:providers": "npx tsx scripts/test-providers.ts"
+    "test:providers": "npx tsx scripts/test-providers.ts",
+    "db:seed": "npx tsx src/db/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",
