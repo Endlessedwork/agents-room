@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { type Agent } from '@/stores/agentStore';
+import { useRoomStore } from '@/stores/roomStore';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   brain: Brain,
@@ -40,6 +41,7 @@ const STEPS = ['1. Name', '2. Agents', '3. Review'] as const;
 
 export function RoomWizard() {
   const router = useRouter();
+  const { fetchRooms } = useRoomStore();
   const [step, setStep] = useState(0);
 
   // Step 1 state
@@ -124,6 +126,7 @@ export function RoomWizard() {
         });
       }
 
+      await fetchRooms();
       router.push(`/rooms/${room.id}`);
     } catch {
       setCreating(false);

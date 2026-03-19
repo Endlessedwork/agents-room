@@ -9,7 +9,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import {
   Select,
   SelectContent,
@@ -286,13 +285,14 @@ export function AgentForm({ preset }: AgentFormProps) {
         <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
           Temperature: {temperature.toFixed(1)}
         </label>
-        <Slider
+        <input
+          type="range"
           min={0}
           max={1}
           step={0.1}
-          value={[temperature]}
-          onValueChange={(val: number | readonly number[]) => setTemperature(Array.isArray(val) ? (val as number[])[0] : val as number)}
-          className="w-full"
+          value={temperature}
+          onChange={(e) => setTemperature(Number(e.target.value))}
+          className="w-full h-1 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
         />
         <div className="flex justify-between text-xs text-muted-foreground mt-1">
           <span>0.0 (precise)</span>

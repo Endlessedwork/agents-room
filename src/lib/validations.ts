@@ -10,13 +10,13 @@ export const createAgentSchema = z.object({
   avatarColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   avatarIcon: z.string().min(1),
   promptRole: z.string().min(1),
-  promptPersonality: z.string().optional(),
-  promptRules: z.string().optional(),
-  promptConstraints: z.string().optional(),
+  promptPersonality: z.string().nullable().optional(),
+  promptRules: z.string().nullable().optional(),
+  promptConstraints: z.string().nullable().optional(),
   provider: z.enum(['anthropic', 'openai', 'google', 'openrouter', 'ollama']),
   model: z.string().min(1),
   temperature: z.number().min(0).max(1).default(0.7),
-  presetId: z.string().optional(),
+  presetId: z.string().nullable().optional(),
 });
 
 export const updateAgentSchema = createAgentSchema.partial();
