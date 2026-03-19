@@ -1,0 +1,10 @@
+{
+  "permission": {
+    "read": {
+      "/home/vsman/agents-room/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "/home/vsman/agents-room/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}
