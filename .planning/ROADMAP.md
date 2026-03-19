@@ -1,0 +1,97 @@
+# Roadmap: Agents Room
+
+## Overview
+
+Agents Room is built bottom-up: the data schema and LLM gateway must exist before any agent logic, the conversation engine must be testable before any streaming UI, and the real-time UI must be working before insights are meaningful. Four phases, each delivering a coherent capability: room and agent management, autonomous multi-agent conversation, live streaming chat experience, and conversation insights and export.
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: Foundation** - Room and agent management with LLM gateway infrastructure
+- [ ] **Phase 2: Conversation Engine** - Autonomous multi-agent conversation with turn control and context management
+- [ ] **Phase 3: Real-Time UI** - Live token streaming, agent identity display, and user participation
+- [ ] **Phase 4: Insights** - Token usage visibility, on-demand summaries, and conversation export
+
+## Phase Details
+
+### Phase 1: Foundation
+**Goal**: Users can create and configure rooms with agents backed by real LLM providers — every room and agent is persisted and survives restarts
+**Depends on**: Nothing (first phase)
+**Requirements**: ROOM-01, ROOM-02, ROOM-03, ROOM-04, AGNT-01, AGNT-02, AGNT-03
+**Success Criteria** (what must be TRUE):
+  1. User can create a room with a name and optional topic description and see it appear in the room list
+  2. User can delete a room and confirm it no longer appears in the list
+  3. User can open a room and see its full (empty) conversation history panel
+  4. User can create an agent with a name, persona/role, system prompt, and an assigned LLM provider and model (Claude, GPT, or Gemini)
+  5. User can add and remove agents from a room; a CLI test confirms streaming responses from all three providers via the same gateway interface
+**Plans**: TBD
+
+Plans:
+- [ ] 01-01: Database schema and migrations (rooms, agents, messages tables via Drizzle + SQLite)
+- [ ] 01-02: LLM gateway — unified streaming interface over Claude, GPT, and Gemini
+- [ ] 01-03: Room and agent CRUD — REST API and management UI
+
+### Phase 2: Conversation Engine
+**Goal**: Agents converse autonomously with full cost and quality safeguards enforced from the first run, verifiable via CLI without any UI
+**Depends on**: Phase 1
+**Requirements**: AGNT-04, AGNT-05, CONV-01, CONV-02, CONV-03, CONV-04, CONV-05
+**Success Criteria** (what must be TRUE):
+  1. Given a topic, agents take sequential turns automatically and the conversation stops exactly at the configured turn limit
+  2. User can start, pause, and stop a running conversation; stop cancels the in-flight LLM call
+  3. Speaker selection operates in both round-robin and LLM-selected modes, configurable per room
+  4. Context sent to each agent uses a sliding window — token counts do not grow unboundedly as conversation length increases
+  5. System auto-pauses and emits a warning when agent responses are detected as repetitive; all messages persist with sender, timestamp, model, and token count across server restarts
+**Plans**: TBD
+
+Plans:
+- [ ] 02-01: Conversation Manager — sequential turn loop, start/pause/stop state machine, configurable turn limit
+- [ ] 02-02: Context Service — sliding window assembly, token accumulator, circuit breaker
+- [ ] 02-03: Speaker selection strategy (round-robin and LLM-selected), cycle detection, message persistence
+
+### Phase 3: Real-Time UI
+**Goal**: Users watch agents think and respond live in a browser chat interface, and can type messages into the running conversation
+**Depends on**: Phase 2
+**Requirements**: RTUI-01, RTUI-02, RTUI-03, RTUI-04
+**Success Criteria** (what must be TRUE):
+  1. Agent messages appear token-by-token in the browser as they are generated — no polling, no full-page refresh
+  2. The active agent shows a "thinking" indicator before its response begins; the indicator clears when the response completes
+  3. User can type and send a message mid-conversation and it enters the agent context on the next turn
+  4. Each message displays the agent name, role badge, and model used; agents are visually distinct from one another
+**Plans**: TBD
+
+Plans:
+- [ ] 03-01: SSE streaming endpoint — token chunks and turn events from Conversation Manager to browser
+- [ ] 03-02: Chat View — live message feed, per-agent identity display, thinking indicators
+- [ ] 03-03: User message injection and Stop/Pause controls in the UI
+
+### Phase 4: Insights
+**Goal**: Users can see what conversations cost, request summaries on demand, and export conversation content for use outside the tool
+**Depends on**: Phase 3
+**Requirements**: INSI-01, INSI-02, INSI-03
+**Success Criteria** (what must be TRUE):
+  1. Token usage and estimated API cost for a room are visible in the UI and update after each completed turn
+  2. User can click a button to generate an LLM-powered summary of the current conversation and read it inline
+  3. User can download the current conversation as a Markdown file and as a JSON file
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01: Token usage display and cost estimation per room
+- [ ] 04-02: On-demand conversation summary (LLM call with full transcript)
+- [ ] 04-03: Conversation export to Markdown and JSON
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3 → 4
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Foundation | 0/3 | Not started | - |
+| 2. Conversation Engine | 0/3 | Not started | - |
+| 3. Real-Time UI | 0/3 | Not started | - |
+| 4. Insights | 0/3 | Not started | - |
