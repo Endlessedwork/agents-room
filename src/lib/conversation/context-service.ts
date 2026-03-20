@@ -43,6 +43,23 @@ export class ContextService {
   static WINDOW_SIZE = 20;
   static REPETITION_WINDOW = 5;
   static REPETITION_THRESHOLD = 0.85;
+  static CONVERGENCE_WINDOW = 8;
+  static CONVERGENCE_THRESHOLD = 0.35;
+  static CONVERGENCE_MIN_TURNS = 6;
+
+  static readonly AGREEMENT_PHRASES = [
+    'great point',
+    "that's a great point",
+    "you're absolutely right",
+    "you're right",
+    'i completely agree',
+    'i agree',
+    "you've convinced me",
+    'exactly right',
+    'precisely',
+    "i think we're aligned",
+    'we agree',
+  ];
 
   /**
    * Build LLM context for an agent's next turn.
@@ -157,6 +174,55 @@ export class ContextService {
       const prevTokens = tokenSet(rows[i].content);
       if (jaccardSimilarity(lastTokens, prevTokens) >= ContextService.REPETITION_THRESHOLD) {
         return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Detect if agents in a room have reached genuine consensus (convergence).
+   * Returns true only when BOTH conditions are met:
+   * 1. An agreement phrase appears in the last CONVERGENCE_WINDOW messages
+   * 2. Cross-agent Jaccard similarity >= CONVERGENCE_THRESHOLD for at least one pair
+   * Also requires turnCount >= CONVERGENCE_MIN_TURNS - 1 to avoid false positives.
+   */
+  static async detectConvergence(
+    db: DrizzleDB,
+    roomId: string,
+    turnCount: number,
+  ): Promise<boolean> {
+    // Guard: never fire before minimum turns (turnCount is 0-based; turn 6 = index 5)
+    if (turnCount < ContextService.CONVERGENCE_MIN_TURNS - 1) return false;
+
+    const rows = await db
+      .select({ content: messages.content, roomAgentId: messages.roomAgentId })
+      .from(messages)
+      .where(eq(messages.roomId, roomId))
+      .orderBy(desc(messages.createdAt))
+      .limit(ContextService.CONVERGENCE_WINDOW);
+
+    if (rows.length < 2) return false;
+
+    // Need at least 2 distinct agents for cross-agent convergence
+    const agentIds = new Set(rows.map((r) => r.roomAgentId).filter(Boolean));
+    if (agentIds.size < 2) return false;
+
+    // Check for agreement phrase in any message in window
+    const anyPhraseMatch = rows.some((row) => {
+      const lower = row.content.toLowerCase();
+      return ContextService.AGREEMENT_PHRASES.some((phrase) => lower.includes(phrase));
+    });
+    if (!anyPhraseMatch) return false;
+
+    // Check cross-agent Jaccard similarity
+    for (let i = 0; i < rows.length; i++) {
+      for (let j = i + 1; j < rows.length; j++) {
+        if (rows[i].roomAgentId === rows[j].roomAgentId) continue;
+        const sim = jaccardSimilarity(tokenSet(rows[i].content), tokenSet(rows[j].content));
+        if (sim >= ContextService.CONVERGENCE_THRESHOLD) {
+          return true;
+        }
       }
     }
 
