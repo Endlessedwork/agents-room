@@ -34,10 +34,22 @@ Agents must be able to have meaningful conversations with each other that produc
 
 ### Active
 
-- [ ] Quality conversations that surface insights and solve problems (v2 goal)
+- [ ] Quality conversations that surface insights and solve problems
 - [ ] Cost estimation display per room (token counts exist, pricing data needed)
 - [ ] Independent parallel first round (agents respond before seeing each other)
 - [ ] Convergence detection (auto-stop when agents reach consensus)
+- [ ] Clean up tech debt (orphaned files, type errors, over-fetching)
+
+## Current Milestone: v1.1 Conversation Quality & Polish
+
+**Goal:** Improve conversation quality, add cost visibility, enable smarter conversation flow (parallel first round + convergence detection), and clean up tech debt from v1.0.
+
+**Target features:**
+- Quality conversations with better prompting and insight surfacing
+- Cost estimation per room based on model pricing
+- Independent parallel first round for richer initial responses
+- Convergence detection to auto-stop when agents agree
+- Tech debt cleanup (dead code, type errors, over-fetching)
 
 ### Out of Scope
 
@@ -80,4 +92,4 @@ Known tech debt: orphaned ConversationPanel.tsx, test file type errors, over-fet
 | Token counts only (no cost) | Cost requires dynamic pricing per model/provider | — Deferred to v2 |
 
 ---
-*Last updated: 2026-03-20 after v1.0 milestone completion*
+*Last updated: 2026-03-20 after v1.1 milestone start*
