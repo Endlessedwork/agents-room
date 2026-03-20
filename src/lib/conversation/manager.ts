@@ -82,7 +82,7 @@ export class ConversationManager {
           const agent = await selector.next(roomId);
 
           // Build context for this agent
-          const context = await ContextService.buildContext(db, roomId, agent);
+          const context = await ContextService.buildContext(db, roomId, agent, turnCount);
 
           // Get provider config for this agent
           const config = await getProviderConfig(agent.provider, db);
