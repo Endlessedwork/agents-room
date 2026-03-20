@@ -70,18 +70,21 @@ export class ContextService {
     // Reverse to chronological order
     rows.reverse();
 
+    // Filter out empty messages (from previous failed turns) that poison context
+    const validRows = rows.filter((row) => row.content.trim().length > 0);
+
     // Map roles: current agent -> assistant, everyone else -> user
-    const mappedMessages = rows.map((row) => ({
+    const mappedMessages = validRows.map((row) => ({
       role: row.roomAgentId === agent.id ? ('assistant' as const) : ('user' as const),
       content: row.content,
     }));
 
-    // LLM APIs require at least one user message. When conversation history is
-    // empty, seed with the room topic so the first agent has something to respond to.
-    if (mappedMessages.length === 0) {
+    // LLM APIs (especially Anthropic) require messages to start with user role.
+    // Seed with room topic when history is empty OR starts with assistant role.
+    if (mappedMessages.length === 0 || mappedMessages[0].role === 'assistant') {
       const room = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });
       const topic = room?.topic?.trim();
-      mappedMessages.push({
+      mappedMessages.unshift({
         role: 'user' as const,
         content: topic
           ? `Discussion topic: ${topic}`

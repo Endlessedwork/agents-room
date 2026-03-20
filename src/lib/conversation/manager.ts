@@ -161,6 +161,13 @@ export class ConversationManager {
 
           if (aborted) break;
 
+          // Skip persisting empty responses — they poison context for subsequent turns
+          if (fullText.trim().length === 0) {
+            emitSSE(roomId, 'turn:cancel', { agentId: agent.id });
+            turnCount++;
+            continue;
+          }
+
           // Persist the agent message
           const msgId = nanoid();
           await db.insert(messages).values({

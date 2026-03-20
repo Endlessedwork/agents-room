@@ -107,10 +107,33 @@ describe('ContextService.buildContext', () => {
     await insertMessage(db, { roomId, roomAgentId: agentId, role: 'agent', content: 'How are you?', createdAt: t2 });
 
     const result = await ContextService.buildContext(db, roomId, baseAgent());
-    expect(result.messages).toHaveLength(3);
-    expect(result.messages[0].content).toBe('Hello!');
-    expect(result.messages[1].content).toBe('Hi!');
-    expect(result.messages[2].content).toBe('How are you?');
+    // First message is assistant (agentId = self), so a seed user message is prepended
+    expect(result.messages).toHaveLength(4);
+    expect(result.messages[0].role).toBe('user'); // seed
+    expect(result.messages[1].content).toBe('Hello!');
+    expect(result.messages[2].content).toBe('Hi!');
+    expect(result.messages[3].content).toBe('How are you?');
+  });
+
+  it('does not prepend seed when messages start with user role', async () => {
+    await insertMessage(db, { roomId, roomAgentId: otherAgentId, role: 'agent', content: 'Other speaks first', createdAt: new Date(1000) });
+    await insertMessage(db, { roomId, roomAgentId: agentId, role: 'agent', content: 'I reply', createdAt: new Date(2000) });
+
+    const result = await ContextService.buildContext(db, roomId, baseAgent());
+    // First message is from otherAgent → user role, no seed needed
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0]).toEqual({ role: 'user', content: 'Other speaks first' });
+    expect(result.messages[1]).toEqual({ role: 'assistant', content: 'I reply' });
+  });
+
+  it('filters out empty messages from failed turns', async () => {
+    await insertMessage(db, { roomId, roomAgentId: otherAgentId, role: 'agent', content: '', createdAt: new Date(1000) });
+    await insertMessage(db, { roomId, roomAgentId: otherAgentId, role: 'agent', content: 'Real message', createdAt: new Date(2000) });
+
+    const result = await ContextService.buildContext(db, roomId, baseAgent());
+    // Empty message filtered out, only real message remains
+    expect(result.messages.every((m) => m.content.trim().length > 0)).toBe(true);
+    expect(result.messages.some((m) => m.content === 'Real message')).toBe(true);
   });
 
   it('returns only the last 20 messages (sliding window) when more than WINDOW_SIZE messages exist', async () => {
@@ -126,10 +149,11 @@ describe('ContextService.buildContext', () => {
     }
 
     const result = await ContextService.buildContext(db, roomId, baseAgent());
-    expect(result.messages).toHaveLength(20);
-    // Should be last 20: messages 5..24
-    expect(result.messages[0].content).toBe('Message 5');
-    expect(result.messages[19].content).toBe('Message 24');
+    // 20 DB messages + 1 seed (all are from self=assistant, so seed prepended)
+    expect(result.messages).toHaveLength(21);
+    expect(result.messages[0].role).toBe('user'); // seed
+    expect(result.messages[1].content).toBe('Message 5');
+    expect(result.messages[20].content).toBe('Message 24');
   });
 
   it('maps current agent messages as assistant, other agent messages as user', async () => {
@@ -137,8 +161,10 @@ describe('ContextService.buildContext', () => {
     await insertMessage(db, { roomId, roomAgentId: otherAgentId, role: 'agent', content: 'I am other agent.', createdAt: new Date(2000) });
 
     const result = await ContextService.buildContext(db, roomId, baseAgent());
-    expect(result.messages[0].role).toBe('assistant');
-    expect(result.messages[1].role).toBe('user');
+    // Seed prepended because first DB message is assistant (self)
+    expect(result.messages[0].role).toBe('user'); // seed
+    expect(result.messages[1].role).toBe('assistant');
+    expect(result.messages[2].role).toBe('user');
   });
 
   it('builds system prompt by joining non-null prompt fields with double newlines', async () => {
