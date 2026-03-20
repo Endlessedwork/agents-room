@@ -37,7 +37,7 @@ Agents must be able to have meaningful conversations with each other that produc
 - ✓ Quality conversations that surface insights and solve problems — Validated in Phase 7: Conversation Quality
 - ✓ Cost estimation display per room — Validated in Phase 8: Cost Estimation
 - [ ] Independent parallel first round (agents respond before seeing each other)
-- [ ] Convergence detection (auto-stop when agents reach consensus)
+- ✓ Convergence detection (auto-pause when agents reach consensus) — Validated in Phase 9: Convergence Detection
 - [ ] Clean up tech debt (orphaned files, type errors, over-fetching)
 
 ## Current Milestone: v1.1 Conversation Quality & Polish
@@ -92,4 +92,4 @@ Known tech debt: orphaned ConversationPanel.tsx, test file type errors, over-fet
 | Token counts only (no cost) | Cost requires dynamic pricing per model/provider | ✓ Resolved — Phase 8 added cost estimation via llm-info |
 
 ---
-*Last updated: 2026-03-21 after Phase 8 (Cost Estimation) complete*
+*Last updated: 2026-03-21 after Phase 9 (Convergence Detection) complete*
