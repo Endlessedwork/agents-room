@@ -15,9 +15,9 @@ Requirements for v1.1 milestone. Each maps to roadmap phases.
 
 ### Cost Estimation
 
-- [ ] **COST-01**: User sees estimated cost per room based on model pricing
+- [x] **COST-01**: User sees estimated cost per room based on model pricing
 - [ ] **COST-02**: Cost updates in real-time as tokens stream
-- [ ] **COST-03**: Unknown models display "—" instead of $0.00
+- [x] **COST-03**: Unknown models display "—" instead of $0.00
 
 ### Parallel First Round
 
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QUAL-01 | Phase 7 | Complete |
 | QUAL-02 | Phase 7 | Complete |
 | QUAL-03 | Phase 7 | Complete |
-| COST-01 | Phase 8 | Pending |
+| COST-01 | Phase 8 | Complete |
 | COST-02 | Phase 8 | Pending |
-| COST-03 | Phase 8 | Pending |
+| COST-03 | Phase 8 | Complete |
 | CONV-01 | Phase 9 | Pending |
 | CONV-02 | Phase 9 | Pending |
 | CONV-03 | Phase 9 | Pending |

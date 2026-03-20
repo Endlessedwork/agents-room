@@ -56,7 +56,7 @@ Plans:
   2. A room using an unrecognized model shows "—" in the cost field, not "$0.00"
   3. Ollama (local) rooms show "local" rather than a dollar figure
   4. Cost figures carry an "est." prefix throughout the UI, never implying false precision
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 08-01-PLAN.md — Pure pricing module (calculateCost + formatCost) with TDD using llm-info
 - [ ] 08-02-PLAN.md — Wire provider through SSE, chatStore cost accumulation, ChatHeader display
@@ -104,7 +104,7 @@ Plans:
 | 5. Foundation Verification | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 6. Room Configuration UI | v1.0 | 2/2 | Complete | 2026-03-20 |
 | 7. Conversation Quality | 2/2 | Complete   | 2026-03-20 | - |
-| 8. Cost Estimation | v1.1 | 0/2 | Planned | - |
+| 8. Cost Estimation | 1/2 | In Progress|  | - |
 | 9. Convergence Detection | v1.1 | 0/TBD | Not started | - |
 | 10. Parallel First Round | v1.1 | 0/TBD | Not started | - |
 | 11. Tech Debt Cleanup | v1.1 | 0/TBD | Not started | - |
