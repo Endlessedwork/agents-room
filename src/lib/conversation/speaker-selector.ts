@@ -12,6 +12,8 @@ export type RoomAgentRow = {
   promptPersonality?: string | null;
   promptRules?: string | null;
   promptConstraints?: string | null;
+  avatarColor?: string | null;
+  avatarIcon?: string | null;
 };
 
 export class SpeakerSelector {

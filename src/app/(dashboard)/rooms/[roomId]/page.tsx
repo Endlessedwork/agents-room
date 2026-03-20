@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, redirect } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useRoomStore } from '@/stores/roomStore';
-import { ConversationPanel } from '@/components/rooms/ConversationPanel';
+import { ChatView } from '@/components/rooms/ChatView';
 
 interface RoomAgent {
   id: string;
   name: string;
   avatarColor: string;
   avatarIcon: string;
+  promptRole: string;
+  model: string;
 }
 
 interface RoomDetail {
@@ -17,6 +19,7 @@ interface RoomDetail {
   name: string;
   topic: string | null;
   status: 'idle' | 'running' | 'paused';
+  turnLimit: number;
   roomAgents: RoomAgent[];
 }
 
@@ -77,5 +80,5 @@ export default function RoomPage() {
     );
   }
 
-  return <ConversationPanel room={room} />;
+  return <ChatView room={room} />;
 }
