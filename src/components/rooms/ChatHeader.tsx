@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useChatStore, formatTokenCount } from '@/stores/chatStore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,40 @@ export function ChatHeader({ room }: ChatHeaderProps) {
   const tokenTotals = useChatStore((s) => s.tokenTotals);
   const hasMessages = useChatStore((s) => s.messages.length > 0);
   const summaryLoading = useChatStore((s) => s.summaryLoading);
+  const summary = useChatStore((s) => s.summary);
+
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const handleExport = (format: 'md' | 'json') => {
+    setExportOpen(false);
+    const params = new URLSearchParams({ format });
+    if (summary) {
+      params.set('summary', summary);
+    }
+    // Trigger browser download via hidden link
+    const url = `/api/rooms/${room.id}/export?${params.toString()}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ''; // Let Content-Disposition set filename
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  useEffect(() => {
+    if (!exportOpen) return;
+    const handler = (_e: MouseEvent) => {
+      setExportOpen(false);
+    };
+    // Delay to avoid closing immediately on the same click
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handler);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handler);
+    };
+  }, [exportOpen]);
 
   const handleSummarize = async () => {
     const store = useChatStore.getState();
@@ -96,6 +131,33 @@ export function ChatHeader({ room }: ChatHeaderProps) {
           >
             {summaryLoading ? 'Generating...' : 'Summarize'}
           </Button>
+        )}
+        {hasMessages && (
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportOpen(!exportOpen)}
+            >
+              Export
+            </Button>
+            {exportOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-popover border rounded-md shadow-md z-20 min-w-[140px]">
+                <button
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                  onClick={() => handleExport('md')}
+                >
+                  Markdown (.md)
+                </button>
+                <button
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-t"
+                  onClick={() => handleExport('json')}
+                >
+                  JSON (.json)
+                </button>
+              </div>
+            )}
+          </div>
         )}
         {roomStatus === 'idle' && (
           <Button variant="default" size="sm" onClick={handleStart}>
