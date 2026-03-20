@@ -69,27 +69,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| QUAL-01 | — | Pending |
-| QUAL-02 | — | Pending |
-| QUAL-03 | — | Pending |
-| COST-01 | — | Pending |
-| COST-02 | — | Pending |
-| COST-03 | — | Pending |
-| PARA-01 | — | Pending |
-| PARA-02 | — | Pending |
-| PARA-03 | — | Pending |
-| CONV-01 | — | Pending |
-| CONV-02 | — | Pending |
-| CONV-03 | — | Pending |
-| DEBT-01 | — | Pending |
-| DEBT-02 | — | Pending |
-| DEBT-03 | — | Pending |
+| QUAL-01 | Phase 7 | Pending |
+| QUAL-02 | Phase 7 | Pending |
+| QUAL-03 | Phase 7 | Pending |
+| COST-01 | Phase 8 | Pending |
+| COST-02 | Phase 8 | Pending |
+| COST-03 | Phase 8 | Pending |
+| CONV-01 | Phase 9 | Pending |
+| CONV-02 | Phase 9 | Pending |
+| CONV-03 | Phase 9 | Pending |
+| PARA-01 | Phase 10 | Pending |
+| PARA-02 | Phase 10 | Pending |
+| PARA-03 | Phase 10 | Pending |
+| DEBT-01 | Phase 11 | Pending |
+| DEBT-02 | Phase 11 | Pending |
+| DEBT-03 | Phase 11 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-21*
-*Last updated: 2026-03-21 after initial definition*
+*Last updated: 2026-03-21 after roadmap creation*
