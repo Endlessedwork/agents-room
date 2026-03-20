@@ -9,9 +9,9 @@ Requirements for v1.1 milestone. Each maps to roadmap phases.
 
 ### Conversation Quality
 
-- [ ] **QUAL-01**: Agents maintain distinct epistemic stances throughout conversation
-- [ ] **QUAL-02**: System injects anti-agreement prompts before round 2+
-- [ ] **QUAL-03**: Topic-lock reminders injected every N turns to prevent drift
+- [x] **QUAL-01**: Agents maintain distinct epistemic stances throughout conversation
+- [x] **QUAL-02**: System injects anti-agreement prompts before round 2+
+- [x] **QUAL-03**: Topic-lock reminders injected every N turns to prevent drift
 
 ### Cost Estimation
 
@@ -69,9 +69,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| QUAL-01 | Phase 7 | Pending |
-| QUAL-02 | Phase 7 | Pending |
-| QUAL-03 | Phase 7 | Pending |
+| QUAL-01 | Phase 7 | Complete |
+| QUAL-02 | Phase 7 | Complete |
+| QUAL-03 | Phase 7 | Complete |
 | COST-01 | Phase 8 | Pending |
 | COST-02 | Phase 8 | Pending |
 | COST-03 | Phase 8 | Pending |
