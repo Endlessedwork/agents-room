@@ -59,4 +59,4 @@ Agents must be able to have meaningful conversations with each other that produc
 | Single-user focus | Simplifies auth/permissions, faster to ship | — Pending |
 
 ---
-*Last updated: 2026-03-20 after Phase 5 completion — Phase 1 foundation requirements formally verified (ROOM-01..04, AGNT-01..03)*
+*Last updated: 2026-03-20 after Phase 6 completion — Room configuration UI wiring complete (AGNT-04, AGNT-05: turnLimit + speakerStrategy)*
