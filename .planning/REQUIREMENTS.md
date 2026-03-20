@@ -1,0 +1,95 @@
+# Requirements: Agents Room
+
+**Defined:** 2026-03-21
+**Core Value:** Agents must have meaningful conversations that produce genuinely useful insights — the room is only valuable if agent collaboration yields better outcomes than talking to one agent alone
+
+## v1.1 Requirements
+
+Requirements for v1.1 milestone. Each maps to roadmap phases.
+
+### Conversation Quality
+
+- [ ] **QUAL-01**: Agents maintain distinct epistemic stances throughout conversation
+- [ ] **QUAL-02**: System injects anti-agreement prompts before round 2+
+- [ ] **QUAL-03**: Topic-lock reminders injected every N turns to prevent drift
+
+### Cost Estimation
+
+- [ ] **COST-01**: User sees estimated cost per room based on model pricing
+- [ ] **COST-02**: Cost updates in real-time as tokens stream
+- [ ] **COST-03**: Unknown models display "—" instead of $0.00
+
+### Parallel First Round
+
+- [ ] **PARA-01**: User can enable parallel first round per room (config toggle)
+- [ ] **PARA-02**: All agents respond independently in round 1 without seeing peers
+- [ ] **PARA-03**: Round 1 responses display in correct order after all complete
+
+### Convergence Detection
+
+- [ ] **CONV-01**: System detects consensus via cross-agent similarity + agreement phrases
+- [ ] **CONV-02**: Auto-pause triggers only after minimum 6 turns
+- [ ] **CONV-03**: System message explains why conversation was paused
+
+### Tech Debt
+
+- [ ] **DEBT-01**: Remove orphaned ConversationPanel.tsx
+- [ ] **DEBT-02**: Fix test file TypeScript errors
+- [ ] **DEBT-03**: Narrow room detail endpoint to avoid over-fetching
+
+## Future Requirements
+
+Deferred beyond v1.1. Tracked but not in current roadmap.
+
+### Notifications
+
+- **NOTF-01**: User receives in-app notification when conversation pauses or completes
+- **NOTF-02**: User receives notification when token spend exceeds threshold
+
+### Advanced Export
+
+- **EXPO-01**: User can export conversation with cost breakdown
+- **EXPO-02**: User can export agent configurations as shareable templates
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Dynamic pricing via external API | Pricing changes infrequently; API adds latency and failure mode. Static table sufficient. |
+| LLM-as-judge for convergence | Doubles API cost per round. Jaccard + phrase detection is cheaper and sufficient. |
+| Streaming parallel first round | Multiple simultaneous streams confuse UX. Buffer-then-display is cleaner. |
+| Semantic embedding for convergence | Requires local embedding model or extra API call. Jaccard is good enough. |
+| Per-agent cost breakdown | Marginal value over room total. Defer to future if requested. |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| QUAL-01 | — | Pending |
+| QUAL-02 | — | Pending |
+| QUAL-03 | — | Pending |
+| COST-01 | — | Pending |
+| COST-02 | — | Pending |
+| COST-03 | — | Pending |
+| PARA-01 | — | Pending |
+| PARA-02 | — | Pending |
+| PARA-03 | — | Pending |
+| CONV-01 | — | Pending |
+| CONV-02 | — | Pending |
+| CONV-03 | — | Pending |
+| DEBT-01 | — | Pending |
+| DEBT-02 | — | Pending |
+| DEBT-03 | — | Pending |
+
+**Coverage:**
+- v1.1 requirements: 15 total
+- Mapped to phases: 0
+- Unmapped: 15 ⚠️
+
+---
+*Requirements defined: 2026-03-21*
+*Last updated: 2026-03-21 after initial definition*
