@@ -1,144 +1,175 @@
 # Stack Research
 
 **Domain:** Multi-agent AI chat room (personal web app, real-time, multi-LLM provider)
-**Researched:** 2026-03-19
-**Confidence:** MEDIUM-HIGH (core stack HIGH, some supporting lib choices MEDIUM)
+**Researched:** 2026-03-20 (v1.1 update — new features only)
+**Confidence:** HIGH (llm-info library), HIGH (parallel pattern), MEDIUM (convergence approach)
 
 ---
 
-## Recommended Stack
+## v1.0 Baseline (DO NOT RE-RESEARCH)
 
-### Core Technologies
+Already installed and validated:
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Next.js | 16.2.0 | Full-stack React framework (frontend + API routes) | Latest stable (March 2026). App Router + Route Handlers handle SSE streaming natively. Unified frontend/backend in one project avoids cross-origin complexity for a personal tool. Built by Vercel, tight AI SDK integration. |
-| TypeScript | 5.x | Language | Non-negotiable for an AI app with complex message schemas, agent configs, and provider types. The entire AI SDK ecosystem is TypeScript-first. |
-| Vercel AI SDK (`ai`) | 6.0.116 | LLM abstraction layer — streaming, multi-provider, agent loops | The single most important library choice. Provides `streamText`, `generateText`, unified provider interface, and `ToolLoopAgent` for agentic loops. Switching models is a one-line change. v6 introduced stable `Agent` abstraction. Without this, you write separate streaming logic per provider. |
-| `@ai-sdk/anthropic` | 3.0.58 | Claude provider adapter | Official Vercel AI SDK adapter for Anthropic. Unified interface, token streaming, tool calls. |
-| `@ai-sdk/openai` | 3.0.41 | GPT provider adapter | Official Vercel AI SDK adapter for OpenAI. Same interface as Anthropic adapter — agent code is provider-agnostic. |
-| `@ai-sdk/google` | 3.0.43 | Gemini provider adapter | Official Vercel AI SDK adapter for Google Gemini. Same interface. |
-| Drizzle ORM | 0.45.1 | Database ORM | TypeScript-first, code-first schema definition, no code generation step needed (`prisma generate` friction eliminated). Bundle size ~90% smaller than Prisma. Instant TypeScript feedback during development. Ideal for a fast-moving personal project. |
-| SQLite (via `better-sqlite3`) | — | Persistence (rooms, agents, messages, history) | Perfect for a single-user personal tool. Zero setup, single file on disk, no server process. Can handle the write volume of one user watching agents converse. Upgrade path to PostgreSQL via Drizzle if ever needed. |
-| Tailwind CSS | v4.x | Styling | Now the de facto standard for TypeScript React projects. v4 ships with @theme directive. shadcn/ui components require it. No alternatives seriously compete for a personal app. |
-| shadcn/ui | latest | Component library | Not a dependency — copies components into your project, fully customizable. Provides Scroll Area, Avatar, Badge, Input, Button, Card needed for chat UI. Built on Radix UI primitives (accessible). Tailwind v4 support confirmed. |
-| Zustand | 5.x | Client-side state (rooms, active agent list, UI state) | Simpler than Redux, more structured than Context. Ideal for chat app state: current room, agent list, message buffer, connection status. Single store model fits this domain. Jotai is an alternative (atomic model) but Zustand's centralized store is easier to reason about for cross-cutting chat state. |
+| Technology | Version | Status |
+|------------|---------|--------|
+| Next.js | `^16.2.0` | Validated |
+| Vercel AI SDK (`ai`) | `^6.0.116` | Validated |
+| `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | `^3.x` | Validated |
+| `ollama-ai-provider-v2`, `@openrouter/ai-sdk-provider` | latest | Validated |
+| Drizzle ORM + SQLite (`better-sqlite3` + `drizzle-kit`) | `^0.45.1` / `^0.31.10` | Validated |
+| Zustand, Tailwind v4, shadcn/ui (Base UI), Biome, Vitest | — | Validated |
+| `zod`, `nanoid`, `date-fns`, `lucide-react` | — | Validated |
 
-### Real-Time Transport
+The v1.0 stack document covers rationale for all of the above. This document covers **only what v1.1 needs**.
 
-| Technology | Purpose | Why |
-|------------|---------|-----|
-| Server-Sent Events (SSE) via Next.js Route Handlers | Streaming LLM tokens to the UI, agent turn notifications | SSE is the right protocol for this use case: unidirectional (server → client), built-in browser reconnect, works over standard HTTP/2, no extra library needed. The AI SDK uses SSE internally for its `useChat` hook. Agent messages flow server → client, user messages go via POST — this is exactly SSE's sweet spot. |
-| HTTP POST (fetch) | User messages → server, agent control commands | Standard REST for the write path. No WebSocket complexity needed for a single-user personal tool where the only bidirectional pattern is: user types → server processes → SSE stream. |
+---
 
-**Why not WebSocket / Socket.IO:** WebSockets are appropriate when you need true bidirectional real-time (gaming, collaborative editing, multiple users). For watching AI agents stream text, SSE is simpler, scales better under HTTP/2, and needs no extra library. Socket.IO adds ~8MB and reconnection complexity you don't need.
+## New Dependencies Required for v1.1
 
-### Supporting Libraries
+### Only One New Production Dependency
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `drizzle-kit` | latest | Drizzle migrations CLI | Required alongside drizzle-orm. Generates and runs migrations. |
-| `better-sqlite3` | latest | SQLite driver for Node.js | Synchronous, fast, well-tested. Used by Drizzle for SQLite in Node.js. |
-| `@types/better-sqlite3` | latest | TypeScript types | Always. |
-| `zod` | 3.x | Runtime validation for API bodies, agent config schemas | The AI SDK uses Zod for structured output schemas. Use it throughout for consistency — validates incoming POST bodies, agent configuration objects, room settings. |
-| `react-markdown` | 9.x | Render agent message content as Markdown | Agents produce Markdown. Rendering raw text loses formatting. Use with `remark-gfm` for tables and code blocks. |
-| `remark-gfm` | 4.x | GitHub Flavored Markdown plugin for react-markdown | Enables tables, strikethrough, task lists in agent output. |
-| `react-syntax-highlighter` | 15.x | Code block syntax highlighting in agent messages | Agents writing code need highlighted blocks for readability. Pair with react-markdown custom renderers. |
-| `nanoid` | 5.x | Generate unique IDs for rooms, agents, messages | Tiny, fast, URL-safe. No UUID dependency needed. |
-| `date-fns` | 3.x | Timestamp formatting in chat UI | Lightweight, tree-shakeable alternative to moment.js. |
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| `llm-info` | `^1.0.69` | Static per-model pricing data for cost estimation | Zero runtime dependencies. Covers all three paid providers (Anthropic, OpenAI, Google). Provides `pricePerMillionInputTokens` and `pricePerMillionOutputTokens` on every `ModelInfo` entry. Has `ModelInfoMap` (keyed by model ID string) and `getModelInfoWithId()`. MIT license. 70 published versions as of March 2026 — actively maintained. No other npm package offers multi-provider static pricing with this coverage. |
 
-### Development Tools
+### No New Libraries for the Other Three Features
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| Biome | Linting + formatting (replaces ESLint + Prettier) | Single tool, zero-config, significantly faster than ESLint. Opinionated defaults that work well for TypeScript. Replaces the ESLint/Prettier dual-config headache. |
-| Vitest | Unit tests | Fastest test runner for Vite-adjacent projects. Works natively with TypeScript, no separate transpile step. Test agent orchestration logic, message queue, provider abstraction. |
-| Drizzle Studio | Database browser | Bundled with drizzle-kit. Visual browser for SQLite DB during development. Run via `npx drizzle-kit studio`. |
+**Parallel first round:** Pure application logic change to `ConversationManager`. Pattern is to fire N `streamLLM()` calls as non-awaited IIFEs (one per agent), then collect with `Promise.allSettled()`. The existing `emitSSE()` fan-out already handles concurrent `turn:start`/`token`/`turn:end` events keyed by `agentId`. No new library required.
+
+**Convergence detection:** New `ContextService.detectConvergence()` method reusing the existing `jaccardSimilarity()` function already in-file, plus keyword phrase scanning. No external library required. Research confirms this 2-signal approach (keywords + content similarity) is used in production multi-agent NLP systems.
+
+**Quality conversations / prompting improvements:** System prompt changes to `ContextService.buildContext()`. No new library required.
+
+**Tech debt cleanup:** TypeScript compiler + Biome. Both already installed.
 
 ---
 
 ## Installation
 
 ```bash
-# Create the Next.js app
-npx create-next-app@latest agents-room --typescript --tailwind --app --src-dir
-
-# Core AI SDK + providers
-npm install ai @ai-sdk/anthropic @ai-sdk/openai @ai-sdk/google
-
-# Database
-npm install drizzle-orm better-sqlite3
-npm install -D drizzle-kit @types/better-sqlite3
-
-# Validation
-npm install zod
-
-# UI
-npm install zustand nanoid date-fns
-npm install react-markdown remark-gfm react-syntax-highlighter
-npm install -D @types/react-syntax-highlighter
-
-# shadcn/ui (interactive, installs components on demand)
-npx shadcn@latest init
-# Then add components as needed:
-# npx shadcn@latest add button card scroll-area avatar badge input textarea
-
-# Dev tools
-npm install -D @biomejs/biome vitest
+# The only new install for v1.1
+npm install llm-info
 ```
+
+---
+
+## Integration Points
+
+### Cost Estimation — `llm-info`
+
+`llm-info` exports `ModelInfoMap` as a plain object keyed by model ID strings (matching `ModelEnum` values like `"claude-sonnet-4-20250514"`). The app already stores `model` as a string per message in the `messages` table. Integration is a lookup utility — no new API calls, no async, pure computation:
+
+```typescript
+import { ModelInfoMap } from 'llm-info';
+
+export function estimateCost(
+  modelId: string,
+  inputTokens: number | null,
+  outputTokens: number | null
+): number | null {
+  if (!inputTokens || !outputTokens) return null;
+  const info = ModelInfoMap[modelId as keyof typeof ModelInfoMap];
+  if (!info?.pricePerMillionInputTokens || !info?.pricePerMillionOutputTokens) return null;
+  return (inputTokens / 1_000_000) * info.pricePerMillionInputTokens
+       + (outputTokens / 1_000_000) * info.pricePerMillionOutputTokens;
+}
+```
+
+**Provider coverage by current app providers:**
+
+| App Provider | llm-info Coverage | Display |
+|-------------|------------------|---------|
+| `anthropic` | YES — claude-sonnet-4, claude-opus-4, claude-haiku-4-5 family | USD cost |
+| `openai` | YES — gpt-4o, gpt-4.1, gpt-5 family | USD cost |
+| `google` | YES — gemini-2.5-pro, gemini-2.5-flash family | USD cost |
+| `openrouter` | NO — OpenRouter is a passthrough; per-request routing determines actual model | Show "N/A" |
+| `ollama` | NO — local inference, free | Show "local" |
+
+**Pricing staleness (MEDIUM confidence):** `llm-info` is community-maintained and may lag official pricing by 2–4 weeks per model change. Verified sample: `claude-sonnet-4-20250514` shows $3/$15 per million tokens. This is within normal range for a personal cost-awareness tool — not billing software. Add a UI disclaimer: *"Cost estimates based on approximate published pricing."*
+
+**Cost display approach:** Compute at read time from stored `inputTokens`/`outputTokens`. Do not store computed costs in DB — they are fully derivable and pricing data changes. Expose per-message cost via the existing room messages API response (add `estimatedCost` to the DTO), and aggregate room total in the room detail endpoint.
+
+---
+
+### Parallel First Round
+
+**Schema change required:** Add `parallelFirstRound` boolean column to `rooms` table.
+
+```typescript
+// In schema.ts — rooms table addition
+parallelFirstRound: integer('parallel_first_round', { mode: 'boolean' })
+  .notNull()
+  .default(false),
+```
+
+Apply via `npx drizzle-kit push` (no migration file needed for this personal local-only app — already the established pattern).
+
+**ConversationManager change:** When `room.parallelFirstRound === true` and `turnCount === 0`, fire all agents simultaneously instead of sequentially:
+
+```typescript
+// Conceptual — round 1 parallel pattern
+const results = await Promise.allSettled(
+  agents.map(agent => runAgentTurn(agent, roomId, controller))
+);
+// Then continue with sequential turns for rounds 2+
+```
+
+The existing SSE infrastructure handles concurrent streaming correctly — each event carries `agentId` so the client routes tokens to the right message slot. No client-side changes needed for this feature beyond displaying that agents responded in parallel.
+
+**UI addition:** Toggle in room config (EditRoomDialog) for "Parallel first round." Stored in DB, displayed in room settings.
+
+---
+
+### Convergence Detection
+
+No schema change. Add `ContextService.detectConvergence()` as a static method.
+
+**Algorithm (2-signal AND logic):**
+
+1. Load the last `agentCount` agent messages (one full round)
+2. **Signal 1 — Agreement phrases:** Scan each message for agreement keywords. If ≥ `floor(agentCount / 2) + 1` agents use agreement language in their most recent message, signal is true.
+   - Phrase set (configurable constant): `["i agree", "we agree", "we've reached", "consensus", "in conclusion", "i think we all", "everyone agrees", "agreed", "i concur", "we concur"]`
+3. **Signal 2 — Content convergence:** Compute pairwise Jaccard similarity between all last-round messages using the existing `jaccardSimilarity()` function. If average ≥ `CONVERGENCE_THRESHOLD` (0.35), signal is true. (Lower than `REPETITION_THRESHOLD` of 0.85 — convergence means agreement, not word-for-word copying.)
+4. Return `converged: true` if **both** signals are true. AND logic reduces false positives.
+
+**Integration in `ConversationManager`:** Call after the last agent in each round completes (after `turnCount % agentCount === agentCount - 1`). When converged: stop loop, set status to `idle`, insert system message `[Conversation converged: agents reached consensus]`, emit `status` SSE event.
+
+**Why AND logic:** Agreement phrases alone fire on sycophantic responses ("I agree with everything you said" as hollow filler). Content similarity alone fires when agents are all being brief. Both together indicate genuine convergence.
+
+---
+
+## Schema Changes Summary
+
+| Table | Column | Type | Default | Reason |
+|-------|--------|------|---------|--------|
+| `rooms` | `parallelFirstRound` | `integer` (boolean mode) | `false` | Parallel first round config toggle |
+
+No other schema changes for v1.1. Cost estimation is runtime-computed from existing columns. Convergence detection changes only behavioral flow (uses existing `status` column).
 
 ---
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Vercel AI SDK | Raw provider SDKs (`@anthropic-ai/sdk`, `openai`) | Never for this project — raw SDKs require writing separate streaming logic per provider. Use raw SDKs only if you need provider-specific features not exposed by the AI SDK. |
-| Vercel AI SDK | Mastra | Mastra is compelling for production multi-agent systems with built-in RAG, evals, memory, and AgentNetwork. For this personal tool starting from greenfield, Mastra's abstractions are heavier than needed. Revisit if conversation memory and agent evaluation become priorities. |
-| Vercel AI SDK | LangGraph.js | Graph-based orchestration is powerful for complex branching agent workflows. Overhead is not justified for a chat room with sequential turn-taking. Consider if agent workflows need conditional routing or parallel tool execution trees. |
-| SQLite | PostgreSQL | Use PostgreSQL if you want to deploy to a hosted server (Railway, Fly.io) or if you ever need concurrent write access from multiple processes. Drizzle makes migration trivial. |
-| Drizzle ORM | Prisma | Prisma 7 eliminated the Rust engine (now pure TypeScript), closing the performance gap. Still requires `prisma generate` on schema change. Choose Prisma if you prefer its schema DSL and want maximum ecosystem maturity. |
-| SSE | WebSocket / Socket.IO | Choose WebSocket only if you add multi-user collaboration or need sub-100ms latency for binary data. Neither applies here. |
-| Next.js 16 | Hono + Vite (separate frontend/backend) | Hono is excellent for edge/serverless APIs and performs better at scale. For a personal tool where deploy simplicity matters and there's no traffic concern, Next.js bundled full-stack is faster to ship. Use Hono if you want a separate API server or plan to deploy the backend to Cloudflare Workers. |
-| Zustand | Jotai | Jotai's atomic model gives finer-grained re-renders. For this app, the chat message list updates need coordinated state (room + agents + messages together), making Zustand's centralized store the better fit. |
-| Biome | ESLint + Prettier | Use ESLint if your team has existing ESLint configs or uses plugins with no Biome equivalent. For a greenfield personal project, Biome is strictly faster and simpler. |
+| Feature | Recommended | Alternative | Why Not |
+|---------|-------------|-------------|---------|
+| Cost pricing data | `llm-info` static package | Fetch from provider pricing APIs at runtime | No public pricing APIs with programmatic access for Anthropic/OpenAI. Adds network calls, latency, and failure modes. |
+| Cost pricing data | `llm-info` static package | Hard-coded pricing constants in codebase | `llm-info` has 70 version updates tracking model launches. Hand-coded requires manual updates per new model. |
+| Cost pricing data | `llm-info` static package | `tokenlens@1.3.1` (alternative package) | `tokenlens` has 4 dependencies vs. `llm-info`'s zero. `llm-info` has cleaner TypeScript types (`pricePerMillionInputTokens` directly on `ModelInfo`). Both are viable; `llm-info` is leaner. |
+| Convergence detection | Keyword + Jaccard in `ContextService` | LLM-as-judge (ask a model "did agents agree?") | Adds ~2s latency per check, costs real tokens on every round, introduces model-specific sycophancy. Deterministic keyword approach is instant and free. |
+| Convergence detection | Keyword + Jaccard | Semantic embeddings (cosine similarity of vectors) | Embedding an API call per message check is overkill for 3–8 message windows. Jaccard on word tokens already captures topical overlap well at this scale. |
+| Parallel first round | IIFE + `Promise.allSettled` | Worker threads, background jobs | Massively overcomplicated. LLM calls are I/O-bound — Node.js async handles true concurrency for I/O. No CPU-bound work here. |
 
 ---
 
-## What NOT to Use
+## What NOT to Add
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Redux / Redux Toolkit | Massive boilerplate for a personal app with simple state needs. Designed for large team codebases with complex state interactions. | Zustand |
-| Socket.IO | Adds unnecessary complexity and bundle weight (~300KB) for a unidirectional streaming use case. Reconnection logic it provides can be handled by SSE's native EventSource retry. | Native SSE via Next.js Route Handlers |
-| LangChain.js | Abstraction layer that has historically lagged behind provider updates, introduced bugs when APIs changed, and the abstraction leaks when you need non-standard behavior. The AI SDK provides everything needed with a thinner, more stable interface. | Vercel AI SDK directly |
-| Firebase / Supabase Realtime | Cloud-managed real-time adds external dependencies, costs, and privacy concerns for a personal tool. The SSE + SQLite pattern is self-contained with no third-party real-time service needed. | SSE via Next.js + SQLite |
-| MongoDB / NoSQL | Chat messages and agent conversations are relational: rooms have agents, agents have messages, messages have parent messages. SQL models this cleanly. NoSQL requires denormalization that becomes painful when querying conversation history. | SQLite via Drizzle |
-| OpenAI Assistants API | Locks conversation state into OpenAI's servers. You can't run the same conversation across providers (Claude for agent A, GPT for agent B). The core value prop of this app is multi-provider — avoid any provider-specific statefulness. | Custom conversation history in SQLite |
-| Moment.js | Discontinued, large bundle size. | `date-fns` |
-
----
-
-## Stack Patterns by Variant
-
-**If you want agents to use tools (web search, code execution):**
-- Use the AI SDK's built-in tool-calling with `experimental_toToolResultContent` for multi-modal tool results
-- Define tools via Zod schemas passed to `streamText({ tools: {...} })`
-- Tool results flow back into conversation automatically with the ToolLoopAgent
-
-**If you want persistent agent memory across sessions:**
-- Add a `memories` table to SQLite (agent_id, content, embedding, timestamp)
-- Use the AI SDK's `experimental_prepareRequestBody` to inject relevant memories as system context
-- Consider upgrading to Mastra at this point — its memory primitives are well-designed
-
-**If you want to deploy to a server (not just run locally):**
-- SQLite works fine on a single-server VPS (Railway, Fly.io, DigitalOcean)
-- Use `better-sqlite3` in WAL mode for better concurrent read performance: `db.pragma('journal_mode = WAL')`
-- If you need multi-process access, migrate to PostgreSQL via Drizzle (schema is compatible)
-
-**If you add voice/audio in the future:**
-- OpenAI Realtime API uses WebSockets — that would justify adding WebSocket support
-- Keep SSE for text agents, add WebSocket specifically for voice agents
+| `tiktoken` or tokenizer libraries | Token counts already come from provider API responses (stored as `inputTokens`/`outputTokens` in `messages`). Adding a tokenizer would re-count what providers already report. | Use existing DB columns |
+| OpenRouter pricing lookup | OpenRouter routes to different underlying models per request; the model ID in the response is the routed model, not a fixed one. Static pricing is meaningless. | Show "N/A" for OpenRouter agents |
+| Persist computed cost in DB | Cost = `f(tokens, price_per_million)`. Both inputs already stored or derivable. Persisting derived values creates drift when pricing data changes. | Compute in API response layer at read time |
+| `langchain` / LangGraph | Importing LangChain for convergence detection would pull 100+ transitive deps for 20 lines of logic already cleanly owned in `ContextService`. | Extend `ContextService` directly |
+| New SSE event types for parallel round | The existing `turn:start` + `token` + `turn:end` events already carry `agentId`. Client already handles concurrent streams. No new protocol needed. | Reuse existing event types |
 
 ---
 
@@ -146,56 +177,21 @@ npm install -D @biomejs/biome vitest
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| `ai@6.x` | Next.js 16.x | Fully compatible. AI SDK 6 was released December 2025, Next.js 16 March 2026. |
-| `@ai-sdk/anthropic@3.x` | `ai@6.x` | Major versions align — all provider packages on `3.x` work with core `ai@6.x`. |
-| `@ai-sdk/openai@3.x` | `ai@6.x` | Same as above. |
-| `@ai-sdk/google@3.x` | `ai@6.x` | Same as above. |
-| `drizzle-orm@0.45.x` | `better-sqlite3` any recent | Stable pairing. Use `drizzle-kit` matching the `drizzle-orm` version. |
-| `tailwindcss@4.x` | Next.js 16.x | Compatible. shadcn/ui components updated for Tailwind v4 + React 19. |
-| `zod@3.x` | `ai@6.x` | AI SDK uses Zod 3.x internally for structured output schemas. Pin to 3.x to avoid conflicts. |
-| `react-markdown@9.x` | React 19 (Next.js 16) | v9 supports React 19. Earlier versions have peer dep issues with React 19. |
-
----
-
-## Agent Turn-Taking Architecture Note
-
-The AI SDK does not provide a built-in "group chat" orchestrator (agents taking turns in sequence). You build this yourself with a simple loop:
-
-```typescript
-// Conceptual: agents take turns until stop condition
-async function runConversationRound(room: Room, trigger: string) {
-  for (const agent of room.agents) {
-    const history = await getRecentMessages(room.id);
-    const { textStream } = streamText({
-      model: getProvider(agent.provider)(agent.model),
-      system: agent.systemPrompt,
-      messages: [...history, { role: 'user', content: trigger }],
-    });
-    // Stream tokens to UI via SSE, persist complete message to SQLite
-    await persistAndStream(textStream, agent, room);
-  }
-}
-```
-
-This is intentional — the turn-taking logic is domain-specific and simple enough to own. Do not reach for Mastra or LangGraph just for turn management.
+| `llm-info@1.0.69` | TypeScript `^5.9.3` | Zero runtime deps. Ships dual ESM + CJS build. Works with Next.js 16 App Router `import` statements. |
+| `llm-info@1.0.69` | Node 18+ | No compatibility issues found. |
+| `drizzle-kit@0.31.10` | `better-sqlite3@12.x` | `npx drizzle-kit push` for schema changes — established pattern in this project. No migration files needed. |
 
 ---
 
 ## Sources
 
-- `https://ai-sdk.dev/docs/introduction` — AI SDK v6 current version (6.0.116), provider packages, streaming APIs (HIGH confidence)
-- `https://vercel.com/blog/ai-sdk-6` — AI SDK 6 release notes, ToolLoopAgent, Agent abstraction (HIGH confidence)
-- `https://github.com/vercel/next.js/releases` — Next.js 16.2.0 confirmed stable as of March 18, 2026 (HIGH confidence)
-- `https://www.npmjs.com/package/@ai-sdk/anthropic` — version 3.0.58 (HIGH confidence)
-- `https://www.npmjs.com/package/@ai-sdk/openai` — version 3.0.41 (HIGH confidence)
-- `https://www.npmjs.com/package/@ai-sdk/google` — version 3.0.43 (HIGH confidence)
-- `https://www.npmjs.com/package/drizzle-orm` — version 0.45.1 (HIGH confidence)
-- `https://makerkit.dev/blog/tutorials/drizzle-vs-prisma` — Drizzle vs Prisma comparison (MEDIUM confidence — editorial)
-- `https://hackernoon.com/streaming-in-nextjs-15-websockets-vs-server-sent-events` — SSE vs WebSocket for Next.js (MEDIUM confidence)
-- `https://ui.shadcn.com/docs/tailwind-v4` — shadcn/ui Tailwind v4 support confirmed (HIGH confidence)
-- WebSearch results on Zustand vs Jotai, Mastra, LangGraph.js, Hono — (MEDIUM confidence — synthesized from multiple sources)
+- `https://www.npmjs.com/package/llm-info` — Package metadata: 70 versions, zero deps, MIT, last published 3 months ago. Package source inspected locally: `ModelInfoMap`, `ModelInfo` type with `pricePerMillionInputTokens`/`pricePerMillionOutputTokens` fields, provider coverage verified (anthropic, openai, google). **HIGH confidence.**
+- Anthropic pricing page (`https://platform.claude.com/docs/en/about-claude/pricing`) — Cross-referenced Claude Sonnet 4 at $3/$15 per million tokens. `llm-info` data consistent with official pricing. **HIGH confidence.**
+- [Multiple Parallel AI Streams with the Vercel AI SDK](https://mikecavaliere.com/posts/multiple-parallel-streams-vercel-ai-sdk) — IIFE pattern for parallel `streamText` calls without blocking. **MEDIUM confidence.**
+- [ACL 2025 CONSENSAGENT](https://aclanthology.org/2025.findings-acl.1141/) — Keyword phrase + content similarity approach for multi-agent consensus detection is research-validated. **MEDIUM confidence.**
+- [pricepertoken.com](https://pricepertoken.com/) — Cross-reference for current pricing ranges. **LOW confidence (aggregator, not official).**
 
 ---
 
-*Stack research for: Agents Room — multi-agent AI chat room*
-*Researched: 2026-03-19*
+*Stack research for: Agents Room v1.1 — conversation quality, cost estimation, parallel first round, convergence detection*
+*Researched: 2026-03-20*

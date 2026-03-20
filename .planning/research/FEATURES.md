@@ -1,217 +1,233 @@
 # Feature Research
 
-**Domain:** Multi-agent AI chat room (personal tool, single-user, LLM-powered)
-**Researched:** 2026-03-19
-**Confidence:** HIGH for core features, MEDIUM for differentiators (verified against AutoGen, CrewAI, MindStudio, AG-UI protocol)
+**Domain:** Multi-agent AI chat room — v1.1 Conversation Quality & Polish milestone
+**Researched:** 2026-03-20
+**Confidence:** HIGH for cost estimation and parallel first round (well-documented patterns); MEDIUM for convergence detection (requires design decisions); MEDIUM for quality improvements (subjective, prompt-engineering dependent)
+
+---
+
+## Context: What Is Already Built (v1.0)
+
+The following features are **complete** and are dependencies, not targets, for this milestone:
+
+- Room & agent CRUD, 5 LLM providers, copy-on-assign agent binding
+- Autonomous multi-agent conversation with turn limits, sliding window context (20 msgs)
+- Repetition detection (Jaccard similarity) with auto-pause
+- Real-time SSE streaming, thinking indicators, user message injection
+- Token usage display, on-demand summaries, MD/JSON export
+- Round-robin and LLM-selected speaker strategies
+- Room configuration UI (turn limit slider, speaker strategy select), edit room settings
+
+---
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist. Missing these = product feels incomplete.
+Features the v1.1 user expects to see. Missing these makes the milestone feel incomplete.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Named rooms with persistent topics | Mental model of a "chat room" demands distinct spaces per subject | LOW | Simple room CRUD + DB table; each room has a name, optional description, and topic |
-| Per-agent persona/role assignment | Agents need distinct identities to produce substantive disagreement; without roles every agent echoes the same voice | MEDIUM | System prompt per agent configures persona, bias, mandate; stored in room config |
-| Multi-provider LLM support | User requires Claude, GPT, Gemini; not all models excel at same tasks | MEDIUM | Each agent carries its own provider + model + API key reference; abstracted via a unified call interface |
-| Autonomous agent conversation | The core value proposition: agents exchange messages without user driving every turn | HIGH | Requires an orchestrator loop: select next speaker, call LLM, broadcast response, repeat |
-| Real-time message display (streaming) | Watching agents think live is the primary experience; batch display kills engagement | HIGH | SSE or WebSocket; stream tokens as they arrive from LLM; per-agent "thinking" indicator before first token |
-| User participation (send messages mid-conversation) | User needs to inject context, clarify, or redirect without stopping the whole room | MEDIUM | User messages are injected into the broadcast history; agents acknowledge and respond |
-| Start / Stop / Pause conversation controls | Without hard stop, agents burn tokens indefinitely; pause lets user think before re-entering | MEDIUM | Orchestrator state machine: IDLE, RUNNING, PAUSED, STOPPED; UI controls map to state transitions |
-| Conversation history persisted per room | Closing the browser must not lose context; user returns to pick up where left off | MEDIUM | Store every message (role, content, timestamp, agent name, model) in DB; load on room open |
-| Configurable turn limit / max iterations | Prevents runaway token spend and infinite loops — the single most reported multi-agent failure mode | LOW | Simple integer config per room or per session; orchestrator halts when limit reached |
-| Per-agent "typing" / "thinking" indicator | Users need visual feedback that agents are active; without it the UI feels broken during LLM latency | LOW | Frontend state driven by SSE events: AGENT_THINKING, AGENT_STREAMING, AGENT_DONE |
-| Conversation summary on demand | Long rooms accumulate hundreds of messages; user needs distilled output | MEDIUM | Call an LLM with the full transcript and a "summarize key insights" prompt; display separately |
+| Feature | Why Expected | Complexity | Dependency on Existing |
+|---------|--------------|------------|------------------------|
+| Cost estimation per room | Token counts already displayed; showing "$0.003" next to "143 tokens" is the natural completion. Users running multiple agents × multiple turns need cost awareness to regulate behavior. | LOW-MEDIUM | Depends on per-message token counts (built). Requires a static pricing table keyed by provider+model. |
+| Convergence auto-stop | Users start conversations to reach conclusions. Without auto-stop, they rely on turn limits alone. Users expect the system to recognize "they've agreed" without manual monitoring. | MEDIUM | Depends on autonomous conversation loop and pause/stop controls (built). Adds a check after each round. |
+| Tech debt cleanup | Dead files, type errors, and over-fetching are visible to the developer. A "quality" milestone that ignores internal quality is incomplete. | LOW | Depends on knowing what debt exists: orphaned ConversationPanel.tsx, test type errors, room detail over-fetching. |
 
 ### Differentiators (Competitive Advantage)
 
-Features that set the product apart. Not required, but valuable.
+Features that make the v1.1 milestone meaningfully better than v1.0 — the core reason for the milestone.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Speaker-selection strategy (round-robin vs. prompt-based) | Round-robin is predictable but dumb; prompt-based selection lets the conversation self-organize — one agent defers when another has stronger relevant expertise | MEDIUM | Orchestrator selects next agent via an LLM call or rule (e.g., "who should respond next?"); configurable per room |
-| Independent response before reveal ("parallel first round") | Prevents herding — agents see each other's output only after each has committed an initial answer; produces genuine disagreement rather than sycophantic echo | HIGH | Orchestrator runs N LLM calls in parallel for round 1, then shares all into shared context for subsequent rounds |
-| Asymmetric context injection | Give different agents different source documents/data; forces substantive debate from different informational vantage points | MEDIUM | Per-agent "context" field in room config; injected into system prompt or user turn prefix |
-| Convergence detection | Automatically halts the conversation when agents reach consensus, saving tokens | MEDIUM | After each round, a lightweight LLM call classifies agreement level; if above threshold, stop and surface synthesis |
-| Per-room token usage dashboard | Single-user cost awareness — shows tokens consumed and estimated cost per session and across rooms | LOW | Sum token counts returned in API responses; store with each message; aggregate per room and total |
-| Conversation export (Markdown / JSON) | User wants to take insights elsewhere — into docs, Obsidian, GitHub issues | LOW | Serialize stored messages into Markdown or JSON; browser download or clipboard copy |
-| "Redirect" injection: change topic mid-conversation | User sees conversation drifting; types a redirect prompt that overrides the current direction without full restart | LOW | Treat redirect as a high-priority system message prepended to next agent turn; UI has a dedicated "redirect room" input |
-| Agent memory across rooms (long-term) | An agent accumulates institutional knowledge from past sessions; carries reasoning forward | HIGH | Requires vector store (e.g., SQLite + sqlite-vec) with retrieval at each turn; significant complexity; HIGH risk of scope creep |
-| Infinite-loop / repetition detection | Automatically flags when agents are repeating identical or near-identical content and pauses the run with a warning | MEDIUM | Hash or embed recent N messages; if cosine similarity exceeds threshold, halt and alert user |
-| Conversation replay / scrubbing | Watch a past conversation play back in real time to review how conclusions were reached | MEDIUM | Store messages with timestamps; replay mode re-renders with artificial delay matching original cadence |
+| Feature | Value Proposition | Complexity | Dependency on Existing |
+|---------|-------------------|------------|------------------------|
+| Independent parallel first round | Eliminates herding — agents anchor on the first response in sequential mode. Running round 1 blind (no peer visibility) produces genuine divergence before agents see each other. Research on Multi-Agent Debate (MAD) confirms this as the canonical technique for getting independent perspectives. | HIGH | Depends on autonomous conversation loop (built). Requires orchestrator to fan-out N parallel LLM calls, collect all responses, then inject them into the shared context before round 2. Conflicts with the current sequential orchestrator flow. |
+| Conversation quality improvements via prompt engineering | Better system-prompt structure + role mandates produce substantive disagreement instead of agreement-by-default. LLMs default to sycophancy; explicit "challenge the previous point" instructions or role-encoded skepticism counteract this. | MEDIUM | Depends on per-agent structured prompt fields (built: role, personality, rules, constraints). Improvement is achieved by changing prompt composition in ConversationManager, not new data structures. |
+| Cost estimation display (formatted, with provider pricing) | Showing actual dollar amounts (e.g., "$0.012 this session") gives the user immediate cost feedback for each room. This is purely additive to the existing token display — high value, low risk. | LOW-MEDIUM | Depends on token counts per message (built). Requires a pricing lookup: `{ provider, model } → { inputCostPerMTok, outputCostPerMTok }`. Static JSON table is sufficient; no external API call needed. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem good but create problems.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Multi-user / team collaboration | "Let my colleague join" | Adds auth, permissions, presence, conflict resolution; destroys simplicity; this is a personal tool | Keep single-user; export and share conversation transcripts manually |
-| Agent tool use / code execution | "Have agents actually run code" | Sandboxing, security, dependency management, error handling balloon scope dramatically; v1 focus is conversation quality | Defer to v2+; agents can discuss code and the user executes manually |
-| Voice / audio input-output | "Talk to the room" | Real-time audio pipeline is an entirely separate engineering domain; TTS/STT latency conflicts with streaming text | Text-only for v1; revisit after core conversation quality is validated |
-| Agent-driven web search (live RAG) | "Let agents Google things" | Each tool call multiplies latency and cost; tool failures cause conversation derailment; adds orchestration complexity | User pastes relevant URLs or text into the room context as asymmetric input |
-| Global shared memory / "learning" across sessions by default | "Agents should remember everything" | Context bloat — injecting all past memories into every turn degrades response quality and inflates costs; difficult to prune | Explicit conversation summaries the user can optionally include as room context |
-| Real-time everything (every keystroke streamed) | "Show exactly what the agent is thinking" | Streaming reasoning traces significantly increases token cost and UI complexity; some providers don't support it | Stream tokens as they arrive (standard SSE); hide internal chain-of-thought unless user enables it |
-| Mobile native app | "I want this on my phone" | Native app duplicates the codebase; web-first already works on mobile browser | Responsive web UI |
+| Dynamic pricing via external API | "Show real-time current pricing" | Provider pricing changes infrequently (weeks/months). An API call per room load adds latency, a new failure mode, and a dependency. The benefit over a manually updated static table is near zero. | Static pricing table, versioned in code, updated manually when providers change. Flag stale data with a "last updated" comment. |
+| LLM-as-judge for convergence | "Use an LLM to decide if consensus is reached" | Adds a full extra LLM API call per round — doubles API cost just for convergence checking. Adds latency per turn. Introduces a new failure mode (judge call fails). | Semantic similarity between agent responses (cosine similarity on embeddings or TF-IDF) — cheaper, local, no extra API call. For a personal tool, 80% precision is acceptable. |
+| Streaming parallel first round | "Show each agent's first-round response as it streams" | The UX value is unclear — agents are responding simultaneously, so showing partial responses from multiple agents simultaneously creates confusion. | Show all first-round responses when the last one completes. Brief "Agents forming independent views..." indicator during parallel phase. |
+| Semantic embedding service for convergence | "Use a proper embedding model for similarity" | Requires either a local embedding model (setup complexity) or an additional API call per convergence check. | Jaccard similarity (already implemented for repetition detection) or cosine similarity on simple TF-IDF vectors. These are good enough for detecting agent agreement without external dependencies. |
+| Per-agent cost breakdown | "Show cost per agent, not just per room" | Marginal value over per-room total; adds UI complexity. Users care about total session cost first. | Show room-level total; break down by agent only if user explicitly requests it (future). |
+
+---
 
 ## Feature Dependencies
 
 ```
-[Room management (CRUD)]
-    └──requires──> [Conversation history persistence]
-                       └──requires──> [Database layer]
-
-[Autonomous agent conversation]
-    └──requires──> [Per-agent persona/role assignment]
-    └──requires──> [Multi-provider LLM support]
-    └──requires──> [Turn limit / max iterations]       ← prevents infinite loops
-
-[Real-time message display]
-    └──requires──> [Autonomous agent conversation]
-    └──requires──> [SSE or WebSocket transport]
-    └──requires──> [Per-agent thinking indicator]
-
-[User participation]
-    └──requires──> [Autonomous agent conversation]
-    └──requires──> [Real-time message display]
-
-[Start/Stop/Pause controls]
-    └──requires──> [Autonomous agent conversation]
-    └──requires──> [Orchestrator state machine]
-
-[Conversation summary]
-    └──requires──> [Conversation history persistence]
-
-[Token usage dashboard]
-    └──requires──> [Multi-provider LLM support]        ← need unified token count reporting
-
-[Convergence detection]
-    └──requires──> [Autonomous agent conversation]
-    └──enhances──> [Turn limit / max iterations]       ← stops early rather than hitting hard limit
-
-[Infinite-loop detection]
-    └──requires──> [Conversation history persistence]
-    └──enhances──> [Start/Stop/Pause controls]         ← auto-triggers pause on detection
+[Cost estimation display]
+    └──requires──> [Token counts per message]     ← already built (v1.0)
+    └──requires──> [Pricing table: provider+model → $/MTok]   ← NEW static data
 
 [Independent parallel first round]
-    └──requires──> [Autonomous agent conversation]
-    └──conflicts──> [Round-robin speaker selection]    ← parallel and sequential are mutually exclusive for round 1
+    └──requires──> [Autonomous conversation loop] ← already built (v1.0)
+    └──requires──> [Orchestrator fan-out logic]   ← NEW: run N calls in parallel
+    └──requires──> [Context merge after round 1]  ← NEW: inject all round-1 responses into shared context
+    └──conflicts──> [Round-robin speaker selection for round 1]  ← round-robin is sequential; parallel bypasses it
 
-[Asymmetric context injection]
-    └──requires──> [Per-agent persona/role assignment]
+[Convergence detection]
+    └──requires──> [Autonomous conversation loop] ← already built (v1.0)
+    └──requires──> [Pause/stop controls]          ← already built (v1.0)
+    └──requires──> [Similarity scoring per round] ← NEW: compare agent responses after each round
+    └──enhances──> [Turn limit]                   ← convergence is the soft stop; turn limit is the hard stop
 
-[Agent long-term memory]
-    └──requires──> [Conversation history persistence]
-    └──requires──> [Vector store]
-    └──conflicts──> [Cost control]                     ← retrieval adds tokens every turn
+[Conversation quality improvements]
+    └──requires──> [Structured agent prompt fields (role, rules, constraints)] ← already built (v1.0)
+    └──enhances──> [Independent parallel first round] ← parallel + good prompts = best independence
+    └──enhances──> [Convergence detection]            ← quality conversations converge meaningfully, not vacuously
+
+[Tech debt cleanup]
+    └──requires──> [Identifying orphaned files]   ← ConversationPanel.tsx
+    └──requires──> [Identifying type errors]      ← test files
+    └──requires──> [Identifying over-fetching]    ← room detail endpoint
 ```
 
 ### Dependency Notes
 
-- **Autonomous conversation requires turn limits:** Without a hard cap, runaway loops are certain. This is the single most documented failure mode in multi-agent systems. Turn limits must ship with the orchestrator, not as a later addition.
-- **Convergence detection enhances turn limits:** Convergence is a soft stop (agents agreed); max iterations is the hard stop (safety net). Both are needed.
-- **Parallel first round conflicts with round-robin:** If you run agents in parallel for round 1, you cannot also sequence them. The orchestrator must choose a strategy per room.
-- **Long-term memory conflicts with cost control:** Vector retrieval injects tokens every single turn. For a personal tool, this can silently inflate costs. Defer this feature until token budgeting is solid.
+- **Parallel first round requires orchestrator refactor:** The current orchestrator is sequential (select speaker → call LLM → broadcast → repeat). Parallel first round requires a new code path: fan-out all agents simultaneously, wait for all to complete, then merge into context. This is the highest-complexity item in the milestone.
+- **Convergence detection does NOT require LLM-as-judge:** Jaccard similarity (already in the codebase for repetition detection) can be repurposed. Convergence = high similarity between different agents (they're saying the same thing). Repetition = high similarity between the same agent across turns. Same technique, different comparison axis.
+- **Cost estimation is independent:** Can be built and shipped without any other milestone feature. Zero risk of breaking existing behavior. Build this first.
+- **Quality improvements are prompt-only:** No new data structures, no new API routes. Changes are in the prompt composition layer (ConversationManager). Low risk.
 
-## MVP Definition
+---
 
-### Launch With (v1)
+## MVP Definition for v1.1
 
-Minimum viable product — what's needed to validate whether agent conversation produces useful insights.
+### Ship in v1.1 (this milestone)
 
-- [ ] Room management (create, name, list, delete rooms) — without rooms there is no structure
-- [ ] Per-agent persona/role assignment (name, system prompt, provider, model) — without distinct roles agents echo each other
-- [ ] Multi-provider LLM support (Claude, OpenAI, Gemini at minimum) — flexibility is a core requirement from PROJECT.md
-- [ ] Autonomous agent conversation with configurable turn limit — the core value proposition
-- [ ] Real-time message display with SSE streaming and thinking indicators — watching agents think live is the experience
-- [ ] User participation (inject messages mid-conversation) — user is both audience and director
-- [ ] Start / Stop / Pause controls — without stop, every session risks runaway cost
-- [ ] Conversation history persisted per room — losing context on browser close is unacceptable
-- [ ] Per-room token usage display — cost awareness is a stated constraint in PROJECT.md
+- [x] **Cost estimation display** — high value, low risk, independent of other features. Token counts exist; add pricing table and display formatted cost.
+- [x] **Conversation quality improvements** — prompt-engineering changes in ConversationManager. No schema changes, no new routes.
+- [x] **Independent parallel first round** — core differentiator of this milestone. Requires orchestrator changes but builds on existing infrastructure.
+- [x] **Convergence detection** — completes the "smart conversation" story. Soft-stop when agents agree; turn limit remains as hard stop.
+- [x] **Tech debt cleanup** — remove orphaned ConversationPanel.tsx, fix test type errors, fix room detail over-fetching.
 
-### Add After Validation (v1.x)
+### Defer to v1.2+
 
-Features to add once agent conversation quality is confirmed to produce useful output.
+- **Per-agent cost breakdown** — v1.1 ships room-level totals; per-agent detail is low priority
+- **Asymmetric context injection** — useful but adds config surface area; validate quality improvements first
+- **Agent long-term memory** — too complex; out of scope per PROJECT.md
 
-- [ ] Conversation summary on demand — trigger once rooms grow beyond ~50 messages; validates the insight-extraction use case
-- [ ] Conversation export (Markdown/JSON) — add when user wants to act on insights outside the tool
-- [ ] Redirect injection (change topic mid-conversation) — add when user reports frustration with drift; currently achievable via Stop + new prompt
-- [ ] Infinite-loop / repetition detection — add when user reports agents getting stuck (may appear immediately in practice)
-- [ ] Speaker-selection strategy config (round-robin vs. LLM-selected) — add when room dynamics feel rigid
-
-### Future Consideration (v2+)
-
-Features to defer until the core workflow is validated and stable.
-
-- [ ] Independent parallel first round — high implementation complexity; defer until conversation quality experiments identify herding as a problem
-- [ ] Asymmetric context injection per agent — useful but adds configuration surface; validate simpler persona differentiation first
-- [ ] Convergence detection — requires reliable LLM-as-judge; adds latency and cost; defer until turn limits prove insufficient
-- [ ] Agent long-term memory across rooms — significant complexity and cost risk; defer until user identifies specific cross-session continuity needs
-- [ ] Conversation replay — nice UX but no core value; defer
-- [ ] Agent tool use / code execution — out of scope for v1 per PROJECT.md; revisit after text-conversation quality is proven
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Room management | HIGH | LOW | P1 |
-| Per-agent persona/role | HIGH | LOW | P1 |
-| Multi-provider LLM | HIGH | MEDIUM | P1 |
-| Autonomous conversation | HIGH | HIGH | P1 |
-| Real-time streaming display | HIGH | HIGH | P1 |
-| Turn limit / max iterations | HIGH | LOW | P1 |
-| Start/Stop/Pause controls | HIGH | MEDIUM | P1 |
-| Conversation history persistence | HIGH | MEDIUM | P1 |
-| User participation | HIGH | MEDIUM | P1 |
-| Per-room token usage display | MEDIUM | LOW | P1 |
-| Conversation summary | MEDIUM | LOW | P2 |
-| Conversation export | MEDIUM | LOW | P2 |
-| Redirect injection | MEDIUM | LOW | P2 |
-| Infinite-loop detection | HIGH | MEDIUM | P2 |
-| Speaker-selection strategy | MEDIUM | MEDIUM | P2 |
-| Independent parallel first round | HIGH | HIGH | P3 |
-| Asymmetric context injection | MEDIUM | MEDIUM | P3 |
-| Convergence detection | MEDIUM | HIGH | P3 |
-| Agent long-term memory | LOW | HIGH | P3 |
-| Conversation replay | LOW | MEDIUM | P3 |
+| Cost estimation display | HIGH | LOW | P1 |
+| Tech debt cleanup | MEDIUM (developer) | LOW | P1 |
+| Conversation quality improvements | HIGH | MEDIUM | P1 |
+| Independent parallel first round | HIGH | HIGH | P1 |
+| Convergence detection | MEDIUM | MEDIUM | P1 |
+| Per-agent cost breakdown | LOW | LOW | P3 |
+| Dynamic pricing via external API | LOW | MEDIUM | P3 |
+| Agent long-term memory | LOW | HIGH | P3 — out of scope |
 
 **Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
+- P1: Ships in v1.1 milestone
+- P2: Consider for v1.2 if v1.1 scope allows
+- P3: Future consideration
 
-## Competitor Feature Analysis
+---
 
-This is a novel personal tool rather than a direct product competitor. The closest analogs are frameworks (AutoGen, CrewAI) and the MindStudio agent chat room article. No direct consumer competitors exist.
+## Implementation Notes Per Feature
 
-| Feature | AutoGen (framework) | CrewAI (framework) | MindStudio (blog example) | Our Approach |
-|---------|--------------------|--------------------|---------------------------|--------------|
-| Multi-agent conversation | Yes, core | Yes, core | Yes, documented | Core — autonomous orchestrator loop |
-| Real-time UI | Next.js + FastAPI; separate project | No built-in UI | No built-in UI | Built-in streaming UI from day one |
-| Persona/role | System prompt per agent | Role + backstory fields | System prompt per agent | System prompt + name + provider config |
-| Turn limits | MaximumIterationCount | Max iterations param | Manual in code | Configurable per room, enforced by orchestrator |
-| Multi-provider | Yes (LiteLLM proxy or native) | Yes (litellm) | No (Claude only in article) | Native support for Claude, OpenAI, Gemini APIs |
-| Speaker selection | Round-robin, LLM selector, custom | Sequential by role | Custom coded | Round-robin (v1), LLM-selector (v2) |
-| Conversation history | In-memory; optional SQLite | SQLite + ChromaDB | Not persisted | Persisted in DB per room, loaded on open |
-| User participation | Human proxy agent | Human input mode | Not described | Direct message injection into orchestrator loop |
-| Stop/Pause controls | No built-in UI | No built-in UI | Manual keyboard interrupt | Explicit UI controls driving orchestrator state machine |
-| Token cost visibility | API responses include usage | API responses include usage | Not described | Aggregated and displayed per room and globally |
-| Loop detection | No | No | Not described | Automatic detection via similarity check (v1.x) |
+### Cost Estimation
+
+**Pattern:** Static pricing table keyed by `provider:model` string → `{ inputCostPerMTok: number, outputCostPerMTok: number }`. Apply at message storage time or compute on read. Display as formatted currency (e.g., `$0.0042`).
+
+**Coverage needed:**
+- Claude: claude-3-5-sonnet, claude-3-5-haiku, claude-3-opus (Anthropic pricing)
+- OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+- Gemini: gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash
+- OpenRouter: pass-through (use underlying model price where known, else show "unknown")
+- Ollama: $0.00 (local, no cost)
+
+**Staleness strategy:** Add a `// Pricing as of YYYY-MM-DD` comment. Display a small "estimated" disclaimer in the UI. This is a personal tool — approximate cost is fine.
+
+**Confidence:** HIGH — this is a well-understood pattern. Token counts already stored per message.
+
+### Independent Parallel First Round
+
+**Pattern (from Multi-Agent Debate literature):** Round 1 = all agents called in parallel with no peer context. Round 2+ = each agent sees all round-1 responses. This is "simultaneous-talk" mode from ChatEval research.
+
+**Orchestrator change:** Add a `parallelFirstRound: boolean` option per room. When true:
+1. Round 1: `Promise.all(agents.map(agent => callLLM(agent, systemPrompt, topic)))` — no agent sees others' responses
+2. Collect all round-1 responses
+3. Inject all responses into shared context
+4. Round 2+: proceed with existing sequential or LLM-selected speaker logic
+
+**UX during parallel phase:** Show "Agents forming independent views..." with a multi-agent thinking indicator. When all complete, display responses in sequence.
+
+**Conflict with round-robin:** For round 1 only, round-robin does not apply (all agents respond). For round 2+, resume selected strategy.
+
+**Confidence:** HIGH — the pattern is well-documented in MAD research. Implementation complexity is in the orchestrator fan-out and SSE broadcasting for parallel responses.
+
+### Convergence Detection
+
+**Pattern:** After each round, compare agent responses pairwise using similarity scoring. If average pairwise similarity exceeds a threshold (e.g., 0.85 on Jaccard or TF-IDF cosine), trigger auto-stop.
+
+**Algorithm choice — Jaccard (recommended):**
+- Already implemented in the codebase for repetition detection
+- Jaccard on word sets: `|A ∩ B| / |A ∪ B|`
+- Cheaper than embedding-based cosine similarity (no model needed)
+- Good enough for detecting semantic agreement in short agent messages
+- Threshold: 0.75–0.85 for convergence (higher than repetition detection threshold)
+
+**When to check:** After every complete round (all agents have responded once). Not after every single message — that would trigger too early.
+
+**What to do on convergence:**
+1. Auto-pause the conversation
+2. Display a "Convergence detected" notification with the round number
+3. Let user choose: stop here, or continue for more rounds
+4. Show a brief synthesis prompt (existing summary feature)
+
+**Edge cases:**
+- Two agents agreeing, one dissenting: only trigger if ALL pairwise similarities exceed threshold
+- Very short responses ("I agree") will score high on Jaccard — consider a minimum response-length guard (e.g., ignore responses under 20 words for convergence check)
+
+**Confidence:** MEDIUM — the approach is sound but threshold calibration requires testing. Initial threshold is a starting guess; the user may need to tune it.
+
+### Conversation Quality Improvements
+
+**What degrades quality:** LLMs default to agreement and elaboration. Without explicit role mandates, agents drift toward consensus after 2-3 turns regardless of the topic. This produces "shallow consensus" — not genuine insight.
+
+**Prompt engineering interventions (no schema changes needed):**
+
+1. **Mandate-based roles:** Each agent's system prompt should include an explicit epistemic stance: "You are the skeptic. Your job is to find flaws in any proposed solution." The current structured prompt fields (role, personality, rules, constraints) already support this — the improvement is in how the orchestrator composes them into the final system message.
+
+2. **Anti-agreement instruction injection:** Before round 2+, prepend a brief meta-instruction to each agent's user turn: "Review the other agents' responses critically. If you agree with them, state specifically WHY you agree and what evidence convinced you — do not simply echo agreement." This reduces vacuous agreement without requiring schema changes.
+
+3. **Topic-lock injection:** After every N turns (e.g., every 5 turns), inject a reminder of the original topic to prevent drift. This is a system message injected into the conversation by the orchestrator, not typed by the user.
+
+4. **Insight-surfacing prompt on summary:** The existing on-demand summary can be improved by changing the summary prompt to explicitly ask for "key insights, unresolved disagreements, and open questions" rather than a plain summary. Schema-free change.
+
+**Confidence:** MEDIUM — prompt engineering improvements are directionally correct but their actual quality impact is hard to predict without running conversations. Mark as "needs validation" after implementation.
+
+### Tech Debt Cleanup
+
+**Known items (from PROJECT.md):**
+- `ConversationPanel.tsx` — orphaned file, safe to delete if no imports found
+- Test file type errors — likely TypeScript strict-mode violations or missing type imports; fix without changing test logic
+- Room detail endpoint over-fetching — endpoint returns more data than the UI needs; refactor to project only required fields
+
+**Approach:** Each item is an isolated fix. No user-visible changes for the orphaned file or type errors. The over-fetching fix may result in a minor response size reduction — validate that existing consumers still receive the fields they use.
+
+---
 
 ## Sources
 
-- [AutoGen Multi-agent Conversation Framework](https://microsoft.github.io/autogen/docs/Use-Cases/agent_chat/) — HIGH confidence, official docs
-- [Agent Chat Rooms: Multi-Agent Debate](https://www.mindstudio.ai/blog/agent-chat-rooms-multi-agent-debate-claude-code) — MEDIUM confidence, practitioner article
-- [CrewAI Agents Documentation](https://docs.crewai.com/en/concepts/agents) — HIGH confidence, official docs
-- [Deep Dive into CrewAI Memory Systems](https://sparkco.ai/blog/deep-dive-into-crewai-memory-systems) — MEDIUM confidence, verified against CrewAI docs
-- [AG-UI Protocol Overview](https://docs.ag-ui.com/introduction) — HIGH confidence, official protocol docs
-- [Fix Infinite Loops in Multi-Agent Chat Frameworks](https://markaicode.com/fix-infinite-loops-multi-agent-chat/) — MEDIUM confidence, practitioner guide
-- [Why AI Agents Get Stuck in Infinite Loops](https://www.fixbrokenaiapps.com/blog/ai-agents-infinite-loops) — MEDIUM confidence, corroborated by multiple sources
-- [Token-Based Rate Limiting for AI Agents](https://zuplo.com/learning-center/token-based-rate-limiting-ai-agents) — MEDIUM confidence
-- [Multi-Agent Frameworks Explained for Enterprise AI 2026](https://www.adopt.ai/blog/multi-agent-frameworks) — MEDIUM confidence, current overview
-- [Microsoft Group Chat Orchestration](https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/group-chat) — HIGH confidence, official Microsoft docs
+- [Improving Factuality and Reasoning in Language Models through Multiagent Debate](https://arxiv.org/abs/2305.14325) — HIGH confidence, peer-reviewed, foundational MAD paper
+- [Multi-LLM-Agents Debate: Performance, Efficiency, and Scaling Challenges (ICLR 2025)](https://d2jud02ci9yv69.cloudfront.net/2025-04-28-mad-159/blog/mad/) — MEDIUM confidence, 2025 analysis of MAD limitations
+- [Agent Chat Rooms: Multi-Agent Debate for Better AI Outputs (MindStudio)](https://www.mindstudio.ai/blog/agent-chat-rooms-multi-agent-debate-claude-code) — MEDIUM confidence, practitioner implementation guide
+- [Emergent Convergence in Multi-Agent LLM Annotation (ACL 2025)](https://aclanthology.org/2025.blackboxnlp-1.12.pdf) — HIGH confidence, peer-reviewed, convergence detection approach
+- [Multi-Agent Consensus Seeking via Large Language Models](https://arxiv.org/pdf/2310.20151) — HIGH confidence, peer-reviewed
+- [LLM API Pricing 2026: Compare 300+ AI Model Costs](https://pricepertoken.com/) — MEDIUM confidence, community-maintained pricing data
+- [LLM API Pricing Comparison 2025 (IntuitionLabs)](https://intuitionlabs.ai/articles/llm-api-pricing-comparison-2025) — MEDIUM confidence, verified against provider pages
+- [Effective context engineering for AI agents (Anthropic)](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — HIGH confidence, official Anthropic engineering blog
+- [llm-cost npm package](https://github.com/rogeriochaves/llm-cost) — LOW confidence for adoption (last updated 2 years ago, limited provider coverage); noted as anti-pattern, not recommended
 
 ---
-*Feature research for: Multi-agent AI chat room (Agents Room)*
-*Researched: 2026-03-19*
+*Feature research for: Agents Room v1.1 — Conversation Quality & Polish milestone*
+*Researched: 2026-03-20*

@@ -1,375 +1,433 @@
 # Architecture Research
 
-**Domain:** Multi-agent AI chat system (personal, single-user, real-time)
-**Researched:** 2026-03-19
-**Confidence:** HIGH (confirmed against Google ADK docs, AutoGen docs, multiple framework references)
+**Domain:** Multi-agent conversation app — v1.1 feature integration
+**Researched:** 2026-03-20
+**Confidence:** HIGH (direct codebase analysis of all relevant modules)
 
-## Standard Architecture
+## Existing Architecture (v1.0 Baseline)
 
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND LAYER                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  Room List   │  │  Chat View   │  │  Agent Config Panel  │  │
-│  │  (nav/mgmt)  │  │  (live feed) │  │  (persona/provider)  │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
-│         │                 │ WebSocket / SSE       │             │
-├─────────┼─────────────────┼───────────────────────┼─────────────┤
-│                        API LAYER                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  REST API    │  │  WebSocket   │  │  Streaming Endpoint  │  │
-│  │  (CRUD ops)  │  │  (room conn) │  │  (LLM token push)   │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
-│         │                 │                      │             │
-├─────────┼─────────────────┼───────────────────────┼─────────────┤
-│                     ORCHESTRATION LAYER                         │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                   Conversation Manager                    │  │
-│  │  - Turn-taking loop (next-speaker selection)             │  │
-│  │  - Message broadcast to all room participants            │  │
-│  │  - Start / stop / redirect controls                      │  │
-│  └──────────────────────────┬───────────────────────────────┘  │
-│                             │                                   │
-│  ┌──────────────────────────┼───────────────────────────────┐  │
-│  │                   Agent Instances                         │  │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐               │  │
-│  │  │ Agent A  │  │ Agent B  │  │ Agent C  │               │  │
-│  │  │ (Claude) │  │ (GPT-4o) │  │(Gemini)  │               │  │
-│  │  └────┬─────┘  └────┬─────┘  └────┬─────┘               │  │
-│  └───────┼─────────────┼─────────────┼─────────────────────┘  │
-│          │             │             │                         │
-├──────────┼─────────────┼─────────────┼──────────────────────────┤
-│                      SERVICE LAYER                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  LLM Gateway │  │  Context Svc │  │  Room / Agent Config │  │
-│  │ (multi-prov) │  │ (history/    │  │  Service             │  │
-│  │              │  │  windowing)  │  │                      │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
-│         │                 │                      │             │
-├─────────┼─────────────────┼───────────────────────┼─────────────┤
-│                       STORAGE LAYER                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  SQLite /    │  │  In-Memory   │  │  File / Env Config   │  │
-│  │  Postgres    │  │  Cache       │  │  (API keys, prompts) │  │
-│  │  (messages,  │  │  (active     │  │                      │  │
-│  │   rooms,     │  │   sessions)  │  │                      │  │
-│  │   agents)    │  │              │  │                      │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-         │                  │                   │
-    Claude API         OpenAI API          Gemini API
-    (external)         (external)          (external)
+┌──────────────────────────────────────────────────────────────────┐
+│                        Browser (React)                           │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │  ChatPanel / ChatHeader / MessageList / ChatInput           │ │
+│  │       Zustand chatStore (messages, streaming, status)       │ │
+│  │       SSE events (token, turn:start, turn:end, status)      │ │
+│  └──────────────────────────┬──────────────────────────────────┘ │
+└─────────────────────────────┼────────────────────────────────────┘
+                              │ HTTP / SSE
+┌─────────────────────────────┼────────────────────────────────────┐
+│                   Next.js 16 API Layer                           │
+│  POST /conversation/start  → ConversationManager.start()        │
+│  POST /conversation/pause  → ConversationManager.pause()        │
+│  POST /conversation/stop   → ConversationManager.stop()         │
+│  POST /conversation/resume → ConversationManager.resume()       │
+│  GET  /stream              → StreamRegistry (SSE endpoint)      │
+│  POST /summary             → generateLLM (non-streaming)        │
+└─────────────────────────────┼────────────────────────────────────┘
+                              │
+┌─────────────────────────────┼────────────────────────────────────┐
+│                    Conversation Layer                            │
+│  ┌──────────────────────────▼──────────────────────────────┐    │
+│  │                 ConversationManager                      │    │
+│  │  Turn loop: while(turnCount < turnLimit)                 │    │
+│  │    SpeakerSelector.next() → agent                        │    │
+│  │    ContextService.buildContext() → {systemPrompt, msgs}  │    │
+│  │    streamLLM() → token stream                            │    │
+│  │    emitSSE(token) → StreamRegistry                       │    │
+│  │    persist message → DB                                  │    │
+│  │    ContextService.detectRepetition() → maybe pause       │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────┐  ┌──────────────────────────────────┐   │
+│  │   ContextService    │  │       SpeakerSelector            │   │
+│  │  buildContext()     │  │  round-robin | llm-selected      │   │
+│  │  detectRepetition() │  │                                  │   │
+│  └─────────────────────┘  └──────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────┼────────────────────────────────────┐
+│                      LLM Gateway                                 │
+│  streamLLM() → Vercel AI SDK streamText()                        │
+│  generateLLM() → Vercel AI SDK generateText()                    │
+│  providers.ts → createAnthropic/OpenAI/Google/OpenRouter/Ollama  │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────┼────────────────────────────────────┐
+│                   SQLite (WAL) via Drizzle                       │
+│  agents | rooms | roomAgents | messages | providerKeys           │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+### Component Responsibilities (Existing)
 
-| Component | Responsibility | Communicates With |
-|-----------|----------------|-------------------|
-| **Chat View (UI)** | Render live message feed, accept user input, stream tokens as they arrive | WebSocket server (receives), REST API (sends user messages) |
-| **Room Manager (UI)** | List/create/select rooms, show agent roster per room | REST API |
-| **Agent Config Panel (UI)** | Set agent persona, provider, model, system prompt | REST API |
-| **REST API** | CRUD for rooms, agents, messages; start/stop conversation | Orchestration layer, storage |
-| **WebSocket Server** | Push new messages and token streams to connected clients | Conversation Manager, frontend |
-| **Conversation Manager** | Run the turn-taking loop; select next speaker; broadcast messages; enforce stop/pause | Agent instances, WebSocket server, Context Service |
-| **Agent Instance** | Wrap a single agent identity (system prompt + provider config); call LLM with scoped context; return response | LLM Gateway, Context Service, Conversation Manager |
-| **LLM Gateway** | Unified interface to Claude / GPT / Gemini APIs; handles auth, streaming, rate limits | External LLM APIs, Agent Instances |
-| **Context Service** | Build per-agent context windows from room history; apply windowing/summarization to prevent token bloat | Storage, Agent Instances |
-| **Room/Agent Config Service** | Persist and retrieve room config, agent definitions, system prompts | Storage |
-| **Storage (DB)** | Durable persistence of messages, rooms, agent configurations | All services |
-| **In-Memory Cache** | Sub-millisecond retrieval of recent conversation history for active rooms | Context Service, Conversation Manager |
+| Component | Responsibility | File |
+|-----------|----------------|------|
+| ConversationManager | Turn loop orchestration, abort control, status transitions | `lib/conversation/manager.ts` |
+| ContextService | Sliding window context assembly (20 msgs), repetition detection (Jaccard) | `lib/conversation/context-service.ts` |
+| SpeakerSelector | Round-robin and LLM-selected speaker strategy | `lib/conversation/speaker-selector.ts` |
+| streamLLM / generateLLM | Provider abstraction, Vercel AI SDK wrapper | `lib/llm/gateway.ts` |
+| StreamRegistry | In-process SSE fan-out, per-room controller sets | `lib/sse/stream-registry.ts` |
+| chatStore (Zustand) | Client message list, streaming buffer, token totals, status | `stores/chatStore.ts` |
 
-## Recommended Project Structure
+---
+
+## Integration Architecture for v1.1 Features
+
+### How the Four Features Land
+
+All four features integrate at the existing ConversationManager → ContextService → Gateway seam. No new API routes are needed. No schema migrations are required.
 
 ```
-agents-room/
-├── frontend/                    # React/Svelte/Vue single-page app
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── RoomList/        # Sidebar navigation
-│   │   │   ├── ChatView/        # Live conversation feed
-│   │   │   ├── MessageBubble/   # Per-agent styled message
-│   │   │   └── AgentConfig/     # Agent creation/editing
-│   │   ├── stores/              # Client state (active room, messages)
-│   │   ├── api/                 # HTTP + WebSocket client wrappers
-│   │   └── App.tsx
-│   └── package.json
-│
-└── backend/                     # Node.js / Python server
-    ├── src/
-    │   ├── api/                 # Route handlers (REST + WebSocket)
-    │   │   ├── rooms.ts
-    │   │   ├── agents.ts
-    │   │   └── ws.ts
-    │   ├── orchestration/       # Core multi-agent engine
-    │   │   ├── ConversationManager.ts  # Turn loop, speaker selection
-    │   │   ├── AgentInstance.ts        # Per-agent wrapper + prompt
-    │   │   └── SpeakerSelector.ts      # Round-robin / LLM-driven
-    │   ├── llm/                 # LLM provider abstraction
-    │   │   ├── gateway.ts       # Unified call interface
-    │   │   ├── providers/
-    │   │   │   ├── anthropic.ts
-    │   │   │   ├── openai.ts
-    │   │   │   └── gemini.ts
-    │   ├── context/             # Context window management
-    │   │   ├── ContextService.ts       # Build agent-scoped history
-    │   │   └── Summarizer.ts          # Condense old turns
-    │   ├── storage/             # DB access layer
-    │   │   ├── db.ts            # Connection + migrations
-    │   │   ├── messages.ts
-    │   │   └── rooms.ts
-    │   └── config/              # API key loading, agent defaults
-    └── package.json
+ConversationManager.start()
+    │
+    ├── [NEW] Round 0 branch: parallel first round
+    │       Fire all agents simultaneously (Promise.all over streamLLM calls)
+    │       Collect buffered responses → persist sequentially → emit SSE sequentially
+    │       turnCount += agentCount → continue sequential loop
+    │
+    ├── Per-turn sequential loop (existing)
+    │       ContextService.buildContext()  ← [MODIFIED] quality prompt additions
+    │       streamLLM()
+    │       persist message
+    │       ContextService.detectRepetition()     (existing)
+    │       [NEW] ContextService.detectConvergence()  ← new static method
+    │
+    └── Cost: derived client-side from token data already in SSE events
+            [NEW] CostEstimator module (client-importable)
+            chatStore.completeTurn() calls CostEstimator after each turn:end
 ```
 
-### Structure Rationale
+---
 
-- **orchestration/:** Isolated from API and storage — the turn-taking loop can evolve independently. Most complex subsystem; deserves its own module boundary.
-- **llm/providers/:** Each provider is a separate file; the gateway exposes one streaming interface. Adding a new provider means adding one file, not touching agent logic.
-- **context/:** Separated from storage because context assembly is computation, not retrieval. Allows swapping summarization strategies without changing the DB schema.
-- **api/:** Thin layer — routes delegate to orchestration services, never implement logic.
+## Feature-by-Feature Integration Points
+
+### 1. Quality Conversations
+
+**What changes:** `ContextService.buildContext()` — system prompt assembly.
+
+The current system prompt is a naive join of four agent prompt fields. Quality improvements inject structural framing that anchors agents to the discussion topic and asks for substantive contributions.
+
+The `roomTopic` is already available — `buildContext()` already queries the room when messages start with `assistant` role. The method signature gets a small extension to always pass `roomTopic` and use it in prompt framing.
+
+Additionally, asking agents to explicitly signal agreement ("I agree with X's point that...") in their prompt rules makes convergence detection downstream more reliable without requiring an LLM call for detection.
+
+**Component boundary:** Entirely within `ContextService.buildContext()`. The manager does not change.
+
+**New vs Modified:** MODIFIED — `ContextService.buildContext()` signature and prompt assembly logic.
+
+---
+
+### 2. Cost Estimation
+
+**What changes:** New `CostEstimator` module, extended `chatStore`, new cost display UI.
+
+**Why client-side:** The client already receives `inputTokens`, `outputTokens`, and `model` via SSE `turn:end` and `turn:start` events respectively. The agent's `provider` is in `StreamingState` (set on `turn:start`). Computing cost client-side requires no extra API call, no DB change, and no turn-loop modification.
+
+**New module: `lib/conversation/cost-estimator.ts`**
+
+This module is importable by both server and client (pure computation, no DB or API dependencies).
+
+```
+CostEstimator
+  ├── PRICING_TABLE: Record<provider, Record<model, {inputPerMTok, outputPerMTok}>>
+  ├── computeCost(provider, model, inputTokens, outputTokens): number | null
+  └── estimateRoomCost(messages[]): number | null   (for history load)
+```
+
+Returns `null` when the model is not in the pricing table (unknown/custom models via OpenRouter or Ollama). UI renders "—" for null costs.
+
+**chatStore changes:** `completeTurn()` calls `CostEstimator.computeCost()` and stores cost per message. A derived `totalCost` accumulator is updated. `loadHistory()` calls `estimateRoomCost()` to populate cost on initial load.
+
+**Data flow:**
+```
+SSE: turn:end { agentId, messageId, inputTokens, outputTokens }
+    chatStore.completeTurn(data)
+        → CostEstimator.computeCost(streaming.provider, streaming.model, ...)
+        → message.estimatedCost = result
+        → tokenTotals.estimatedCost += result
+    UI: cost badge per message, cumulative in header
+```
+
+**Schema change:** None. Cost is derived from existing columns.
+
+**New vs Modified:**
+- NEW: `lib/conversation/cost-estimator.ts`
+- MODIFIED: `stores/chatStore.ts` — per-message cost field, total cost accumulator, `loadHistory` uses `estimateRoomCost`
+- NEW: cost display in UI (rendering only, no logic)
+
+---
+
+### 3. Parallel First Round
+
+**What changes:** `ConversationManager.start()` — turn loop entry.
+
+**What it means:** When no agent has spoken yet (round 0), all agents respond to the raw topic without seeing each other's output. Subsequent rounds proceed sequentially (existing behavior untouched).
+
+**The SSE ordering constraint:** `chatStore.streaming` holds a single `StreamingState` slot. Truly parallel token streaming would interleave `turn:start` / `token` / `turn:end` events and break the client state machine. The solution: run all LLM calls in parallel but buffer each agent's full response text, then emit SSE sequentially per agent.
+
+```
+parallelFirstRound(roomId, agents, db):
+    1. buildContext for each agent simultaneously (Promise.all)
+    2. streamLLM for each agent simultaneously (Promise.all, consume full text into buffers)
+    3. For each agent (sequential emission):
+        emitSSE(turn:start, agentN)
+        emitSSE(token × chunks, agentN)   ← replaying buffered text as chunks
+        persist message to DB
+        emitSSE(turn:end, agentN)
+    4. return turnCount (= number of agents)
+```
+
+The latency benefit is real: parallel round 1 waits for the slowest agent, not the sum of all agents. With 3 agents each taking 5 seconds, parallel = 5s total vs sequential = 15s.
+
+**Guard condition:** Check `messageCount === 0` before entering `parallelFirstRound`. This means the feature only activates at conversation start, not on resume.
+
+**Abort signal:** Each parallel LLM call gets its own `AbortController`. If the room is stopped while parallel calls are in flight, all controllers are aborted. The `activeControllers` map can hold multiple entries during the parallel phase (keyed by `${roomId}-${agentId}`), then restored to the single per-room entry before the sequential loop.
+
+**New vs Modified:**
+- MODIFIED: `ConversationManager.start()` — parallel first round branch
+- NEW (optional): `lib/conversation/parallel-round.ts` — extract logic for unit testability
+
+---
+
+### 4. Convergence Detection
+
+**What changes:** `ContextService` (new method), `ConversationManager.start()` (call alongside repetition check).
+
+**What convergence means:** Agents have reached semantic agreement. Distinct from repetition detection (Jaccard token overlap). Convergence is signaled by explicit linguistic markers in recent messages.
+
+**Approach: heuristic phrase detection (no LLM call).**
+
+`ContextService.detectConvergence(db, roomId)` method:
+- Queries last N agent messages (default: 6, configurable as class constant)
+- Counts messages containing agreement signal phrases: "I agree", "exactly right", "you're correct", "consensus", "we've established", "we all agree", "I concur", "well said"
+- Counts messages containing disagreement signals: "I disagree", "however", "on the contrary", "but actually", "I would argue", "not necessarily"
+- Returns `true` when: agreement signals present in majority of recent messages AND disagreement signals absent or minimal
+- Returns `false` when fewer than N agent messages exist (cannot detect convergence too early)
+
+Quality prompt changes (feature 1) ask agents to use explicit agreement language, which significantly improves signal reliability.
+
+**Integration in turn loop:**
+```typescript
+// After turn:end persist, alongside existing repetition check
+const isRepetitive = await ContextService.detectRepetition(db, roomId);
+const hasConverged = await ContextService.detectConvergence(db, roomId);
+
+if (isRepetitive) {
+  // existing: pause with system message
+}
+if (hasConverged) {
+  await db.update(rooms).set({ status: 'idle' }).where(eq(rooms.id, roomId));
+  emitSSE(roomId, 'status', { status: 'idle' });
+  await db.insert(messages).values({ /* system message */ content: '[Conversation complete: agents reached consensus]' });
+  emitSSE(roomId, 'system', { content: '[Conversation complete: agents reached consensus]' });
+  break;
+}
+```
+
+Uses existing `status` and `system` SSE event types. No new event types needed.
+
+**New vs Modified:**
+- MODIFIED: `ContextService` — new `detectConvergence()` static method
+- MODIFIED: `ConversationManager.start()` — call `detectConvergence()` after each turn
+
+---
+
+## Component Boundary Map
+
+```
+lib/conversation/
+├── manager.ts          [MODIFIED] parallel first round branch + convergence check
+├── context-service.ts  [MODIFIED] quality prompts in buildContext(), new detectConvergence()
+├── speaker-selector.ts [UNCHANGED]
+├── cost-estimator.ts   [NEW] pricing table + computeCost() + estimateRoomCost()
+└── parallel-round.ts   [OPTIONAL NEW] extracted parallel logic for testability
+
+stores/
+└── chatStore.ts        [MODIFIED] per-message cost, total cost accumulator
+
+src/app/ (UI)
+└── [new component]     [NEW] cost display (badge per message + room total header)
+
+db/schema.ts            [UNCHANGED] no migration needed
+lib/llm/                [UNCHANGED]
+lib/sse/                [UNCHANGED]
+app/api/rooms/.../      [UNCHANGED] all behavior changes below the API layer
+```
+
+---
+
+## Data Flow Changes
+
+### Cost Estimation Flow (Client-Side)
+
+```
+Server: turn:start { agentId, agentName, model, provider, ... }
+    → chatStore.startTurn() stores model + provider in StreamingState
+
+Server: turn:end { agentId, messageId, inputTokens, outputTokens }
+    → chatStore.completeTurn(data)
+    → CostEstimator.computeCost(streaming.provider, streaming.model, inputTokens, outputTokens)
+    → message.estimatedCost = cost (or null)
+    → tokenTotals.estimatedCost += cost
+
+Initial load: chatStore.loadHistory()
+    → CostEstimator.estimateRoomCost(messages)
+    → tokenTotals.estimatedCost = aggregate
+
+UI renders "$0.002" per message, "~$0.018 total" in header
+```
+
+### Convergence Detection Flow
+
+```
+Server: after each turn:end persist
+    → ContextService.detectConvergence(db, roomId)
+    → true?
+        → rooms.status = 'idle'
+        → persist system message
+        → emitSSE('status', { status: 'idle' })
+        → emitSSE('system', { content: '[consensus]' })
+
+Client: chatStore.setRoomStatus('idle')
+    chatStore.addSystemMessage('[consensus message]')
+    (same path as any other stop event — no new client handling needed)
+```
+
+### Parallel First Round Flow
+
+```
+Server: ConversationManager.start()
+    → SELECT count(*) FROM messages WHERE roomId = ? → result = 0
+    → parallelFirstRound():
+        → Promise.all([buildContext(a1), buildContext(a2), buildContext(a3)])
+        → Promise.all([streamLLM(a1, ctx1), streamLLM(a2, ctx2), streamLLM(a3, ctx3)])
+           (each collects full text into a buffer, all in flight simultaneously)
+        → Sequential SSE emission:
+            emitSSE(turn:start, a1) → emitSSE(token × N, a1) → persist a1 → emitSSE(turn:end, a1)
+            emitSSE(turn:start, a2) → emitSSE(token × N, a2) → persist a2 → emitSSE(turn:end, a2)
+            emitSSE(turn:start, a3) → emitSSE(token × N, a3) → persist a3 → emitSSE(turn:end, a3)
+        → return agentCount (3)
+    → turnCount = 3, continue sequential loop for remaining turns
+```
+
+---
 
 ## Architectural Patterns
 
-### Pattern 1: Conversation Manager with Centralized Turn Loop
+### Pattern: Augment, Don't Replace
 
-**What:** A single Conversation Manager process owns the running conversation per room. It maintains the ordered message log, selects the next speaking agent, calls that agent, receives the response, writes it to storage, broadcasts it over WebSocket, then repeats.
+**What:** Add new behavior alongside existing behavior, guarded by a condition or as a new parallel method.
+**When to use:** When the new feature is a superset of existing behavior (parallel first round adds a branch before the loop; convergence detection adds a check alongside repetition detection).
+**Trade-off:** Keeps existing code paths as the golden path. New branches are narrow and independently testable. Risk: method complexity grows. Acceptable given the tight scope.
 
-**When to use:** Always for this project. The alternative (agents calling each other peer-to-peer) creates race conditions and makes user controls (stop/redirect) nearly impossible to implement.
+### Pattern: Client-Side Derivation from In-Transit Data
 
-**Trade-offs:**
-- Pro: Single point of control, easy to pause/stop, easy to inject user messages
-- Pro: Guaranteed message ordering
-- Con: Sequential by design — agents cannot respond simultaneously (acceptable here; simultaneous speech would be confusing anyway)
+**What:** Derive computed values on the client from data already present in SSE events, using a shared pure-computation module.
+**When to use:** When the data for computation is already being sent (token counts, model, provider) and derivation requires no secrets or DB access.
+**Trade-off:** Pricing table lives client-side (static, not sensitive). Avoids extra API round-trip and turn-loop complexity. Pricing updates require a deploy, but that is acceptable for a personal tool.
 
-**Example:**
-```typescript
-class ConversationManager {
-  async runLoop(roomId: string) {
-    while (this.isRunning(roomId)) {
-      const context = await this.contextService.buildRoomContext(roomId);
-      const nextAgent = await this.speakerSelector.selectNext(roomId, context);
-      const response = await nextAgent.respond(context);
-      await this.storage.saveMessage(roomId, nextAgent.id, response);
-      this.websocket.broadcast(roomId, { agent: nextAgent.id, content: response });
-      await this.applyTurnDelay(); // prevent runaway costs
-    }
-  }
-}
-```
+### Pattern: Buffer-Then-Emit for Parallelism
 
-### Pattern 2: Agent-Scoped Context Windows (not shared full history)
+**What:** Run LLM calls concurrently for latency savings but buffer full responses and emit SSE sequentially to preserve the client state machine.
+**When to use:** When the client state machine assumes a single active streaming slot (chatStore.streaming is one object, not an array).
+**Trade-off:** Round 1 responses appear as a burst after all complete, not progressively per agent. The real-time streaming feel is deferred to rounds 2+. The latency benefit (slowest agent time vs. sum of all) is preserved.
 
-**What:** Each agent receives a context window assembled specifically for it, not the raw full message log. The Context Service computes what each agent sees: its own system prompt, a windowed slice of recent messages (e.g., last 20), optionally a running summary of older turns.
+---
 
-**When to use:** As soon as conversations get long. Without this, token costs grow quadratically (every new message re-sends all prior history to every agent). Research shows 60-80% token reduction with scoped context.
+## Anti-Patterns to Avoid
 
-**Trade-offs:**
-- Pro: Controls costs; prevents context-window overflow for long conversations
-- Pro: Agents with narrow roles perform better without irrelevant noise
-- Con: Adds complexity; requires a summarization step for very long rooms
+### Anti-Pattern: New SSE Event Type for Convergence
 
-**Example:**
-```typescript
-class ContextService {
-  buildForAgent(agent: AgentConfig, messages: Message[]): ContextWindow {
-    const recentMessages = messages.slice(-20);      // sliding window
-    const summary = this.getSummary(messages, -20);  // summarized older turns
-    return {
-      systemPrompt: agent.systemPrompt,
-      messages: [
-        ...(summary ? [{ role: 'system', content: `Earlier: ${summary}` }] : []),
-        ...recentMessages
-      ]
-    };
-  }
-}
-```
+**What people do:** Create a `convergence` SSE event, add a new chatStore handler.
+**Why it's wrong:** The existing `status: idle` plus `system` message pair already expresses "conversation stopped with explanation." Fragmenting the status state machine adds client complexity.
+**Do this instead:** Reuse existing `status` and `system` event types. The consensus message in the system event explains why the room stopped.
 
-### Pattern 3: LLM Gateway (Unified Provider Interface)
+### Anti-Pattern: Server-Side Cost Computation in the Turn Loop
 
-**What:** All LLM calls go through a single gateway module that translates a standard request object into provider-specific API calls and returns a standard streaming response. Providers are plug-in modules behind a common interface.
+**What people do:** Add pricing logic inside ConversationManager, persist cost to DB, include it in `turn:end` SSE payload.
+**Why it's wrong:** Embeds pricing data in the core turn loop. Pricing changes require touching conversation logic. The client already has tokens and model — it can compute cost without a round-trip.
+**Do this instead:** Client-side derivation via `CostEstimator` module in `chatStore.completeTurn()`.
 
-**When to use:** Any time multiple LLM providers must be supported. Prevents provider-specific code from leaking into agent logic.
+### Anti-Pattern: Truly Parallel SSE Token Streaming
 
-**Trade-offs:**
-- Pro: Swap providers without touching agent code; add providers incrementally
-- Pro: One place to add logging, cost tracking, retry logic
-- Con: Slight indirection; the gateway's streaming abstraction must handle different chunked formats per provider
+**What people do:** Extend chatStore to hold N concurrent StreamingState slots and pipe each agent's token stream directly to SSE as it arrives.
+**Why it's wrong:** Requires chatStore rework, UI changes to render N simultaneous in-progress bubbles, and SSE multiplexing by agent ID. The scope is disproportionate to the benefit — the user sees agents thinking simultaneously but the UI complexity is significant.
+**Do this instead:** Parallel LLM calls with buffered text, sequential SSE emission. The latency improvement is preserved.
 
-**Example:**
-```typescript
-interface LLMProvider {
-  stream(request: LLMRequest): AsyncIterable<string>;
-}
+### Anti-Pattern: LLM Call for Convergence Detection
 
-class LLMGateway {
-  private providers: Record<string, LLMProvider> = {
-    anthropic: new AnthropicProvider(),
-    openai: new OpenAIProvider(),
-    gemini: new GeminiProvider(),
-  };
+**What people do:** After each turn, call `generateLLM()` asking "have the agents reached consensus?"
+**Why it's wrong:** Doubles cost per turn for every conversation, adds latency to every turn, and is unnecessary when quality prompts produce explicit agreement signals.
+**Do this instead:** Phrase-based heuristic in `ContextService.detectConvergence()`. Upgrade to LLM-powered detection in v1.2 if the heuristic proves insufficient.
 
-  stream(providerName: string, request: LLMRequest): AsyncIterable<string> {
-    return this.providers[providerName].stream(request);
-  }
-}
-```
+---
 
-## Data Flow
+## Suggested Build Order
 
-### Agent Turn Flow (Core Loop)
+Dependencies drive the sequence.
 
-```
-[Conversation Manager: select next agent]
-    ↓
-[Context Service: build scoped window for that agent]
-    ↓ (system prompt + recent messages + optional summary)
-[Agent Instance: call LLM Gateway with context]
-    ↓
-[LLM Gateway: call provider API, receive token stream]
-    ↓ (streaming tokens)
-[Agent Instance: accumulate + yield tokens]
-    ↓
-[WebSocket Server: push tokens to UI in real-time]
-    ↓ (message complete signal)
-[Storage: write final message to DB]
-    ↓
-[In-Memory Cache: update recent history for room]
-    ↓
-[Conversation Manager: next iteration of loop]
-```
+### Step 1: Quality Conversations
 
-### User Message Injection Flow
+Build first. Zero dependencies on other features. Isolated to `ContextService.buildContext()`. This also makes convergence detection (step 3) more reliable — quality prompts produce explicit agreement signals that phrase matching can detect.
 
-```
-[User types message in Chat View]
-    ↓
-[REST POST /rooms/:id/messages]
-    ↓
-[API Layer: validate + write to DB immediately]
-    ↓
-[WebSocket broadcast: show user message to UI]
-    ↓
-[Conversation Manager: queue user message as next context item]
-    ↓ (loop continues — next agent turn sees user message)
-```
+Validates: system prompt output via unit tests. No integration risk.
 
-### User Control Flow (Stop / Redirect)
+### Step 2: Cost Estimator
 
-```
-[User clicks Stop / sends redirect command]
-    ↓
-[REST POST /rooms/:id/control { action: "stop" | "redirect" }]
-    ↓
-[Conversation Manager: set isRunning = false | inject redirect prompt]
-    ↓ (loop exits cleanly after current agent finishes its token stream)
-```
+Build second. Fully independent. New module (`cost-estimator.ts`) plus additive chatStore changes. Can be done in parallel with step 1.
 
-### Key Data Flows
+Validates: `computeCost()` unit tests against known models. UI rendering of cost fields.
 
-1. **Token streaming:** LLM provider → Agent Instance → WebSocket → Chat View UI. Tokens push as they arrive; the final assembled message is written to DB only once complete.
+### Step 3: Convergence Detection
 
-2. **Context assembly:** Each agent turn re-reads the last N messages from in-memory cache (microseconds), not the full DB (milliseconds). Cache is updated after each turn.
+Build third. Depends on step 1 for reliable signal phrases. `detectConvergence()` mirrors the existing `detectRepetition()` pattern — same DB query shape, new detection logic. The manager hook is a small addition alongside the existing repetition check.
 
-3. **Room history persistence:** Messages written to SQLite/Postgres after each completed turn. Cache holds last 30-50 messages per room for fast context assembly.
+Validates: unit tests with crafted message fixtures containing agreement/disagreement phrases. Integration test: conversation stops at idle with system message when convergence threshold met.
 
-## Scaling Considerations
+### Step 4: Parallel First Round
 
-This is a personal single-user tool. Scaling is not a primary concern; the relevant considerations are cost and response latency.
+Build last. Most complex change — modifies the turn loop entry point which is the highest-risk area. Better to have quality prompts and convergence detection stable first. The `messageCount === 0` guard isolates the change to round 1 only; existing sequential behavior for all subsequent rounds is untouched.
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 1 user, 1-3 rooms active | Monolith is correct. No queue needed. In-process state is fine. |
-| 1 user, many long-running rooms | Add per-room token budget + auto-pause. Context summarization becomes critical. |
-| Multi-user (out of scope v1) | Would need: externalized conversation state (Redis), WebSocket pub/sub, horizontal scaling |
+Validates: integration test — fire 3 agents in a new room, verify all 3 messages persisted before sequential turns begin. Latency test: parallel round should complete in ~max(individual agent times).
 
-### Scaling Priorities
+### Step 5: Tech Debt Cleanup
 
-1. **First bottleneck:** LLM API cost. Multiple agents per turn × long history = quadratic token spend. Mitigate with sliding window context (Pattern 2 above).
-2. **Second bottleneck:** Response latency. Agents respond sequentially; slow provider = stalled conversation. Mitigate with per-agent timeout + fallback message.
+Interleaved throughout. Orphaned `ConversationPanel.tsx` removal is independent of all features. Type error fixes should accompany whichever feature touches the affected file. Do not defer to end — debt becomes harder to clean after new features add surface area.
 
-## Anti-Patterns
+---
 
-### Anti-Pattern 1: Full History Sent to Every Agent Every Turn
+## New vs Modified: Complete Reference
 
-**What people do:** Pass the complete room message list as the context to every LLM call.
+| Component | Status | Change Summary |
+|-----------|--------|----------------|
+| `lib/conversation/manager.ts` | MODIFIED | Parallel first round branch (`messageCount === 0`), convergence check after each turn |
+| `lib/conversation/context-service.ts` | MODIFIED | Quality framing in `buildContext()`, new `detectConvergence()` static method |
+| `lib/conversation/cost-estimator.ts` | NEW | Static pricing table, `computeCost()`, `estimateRoomCost()` |
+| `lib/conversation/parallel-round.ts` | OPTIONAL NEW | Extracted parallel logic for unit testability |
+| `stores/chatStore.ts` | MODIFIED | Per-message `estimatedCost` field, total cost accumulator, `loadHistory` uses `estimateRoomCost` |
+| Cost display UI component | NEW | Renders cost per message and room total |
+| `lib/conversation/speaker-selector.ts` | UNCHANGED | — |
+| `lib/llm/gateway.ts` | UNCHANGED | — |
+| `lib/sse/stream-registry.ts` | UNCHANGED | — |
+| `db/schema.ts` | UNCHANGED | No migration needed |
+| API routes | UNCHANGED | All behavior changes are below the route layer |
 
-**Why it's wrong:** Token count grows with every message. In a 10-agent, 100-turn conversation, each new turn sends ~1000 past messages. Costs spiral, context windows overflow, agents lose focus on recent content.
-
-**Do this instead:** Context Service builds a scoped window (last N turns + summary). Each agent sees only what it needs.
-
-### Anti-Pattern 2: Agents Calling Each Other Directly (Peer-to-Peer)
-
-**What people do:** Each agent has a reference to other agents and triggers them directly, forming a decentralized mesh.
-
-**Why it's wrong:** No single point of control. User cannot reliably stop or redirect the conversation. Message ordering becomes non-deterministic. Difficult to persist the canonical message log.
-
-**Do this instead:** Centralized Conversation Manager owns the loop and mediates all agent interactions.
-
-### Anti-Pattern 3: Blocking the WebSocket Handler During LLM Calls
-
-**What people do:** Await LLM completion inside the WebSocket message handler before responding.
-
-**Why it's wrong:** LLM calls take 5-30+ seconds. A blocked handler stalls all other WebSocket events (stop commands, other room messages) during that window.
-
-**Do this instead:** Conversation Manager runs in a background async loop. WebSocket handler only enqueues commands (stop, redirect, user message). The loop is non-blocking relative to the connection handler.
-
-### Anti-Pattern 4: Storing API Keys in the Database
-
-**What people do:** Save provider API keys in the same DB that stores conversation history.
-
-**Why it's wrong:** Expands the attack surface. A DB read bug exposes credentials.
-
-**Do this instead:** API keys in environment variables or a secrets file (`.env`), never in DB rows. Config service reads from env at startup.
-
-## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Anthropic Claude API | Streaming HTTP (`/v1/messages` with `stream: true`) | SDK: `@anthropic-ai/sdk`. Native streaming via `AsyncIterable`. |
-| OpenAI / GPT | Streaming HTTP (`/v1/chat/completions` with `stream: true`) | SDK: `openai`. Same SSE pattern. |
-| Google Gemini API | Streaming gRPC or HTTP (`generateContentStream`) | SDK: `@google/genai`. Slightly different chunk format — normalize in gateway. |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Frontend ↔ Backend API | HTTP REST + WebSocket | WebSocket for live messages; REST for all CRUD and controls |
-| Conversation Manager ↔ Agent Instance | Direct function call (in-process) | No queue needed for single-user; keep it simple |
-| Agent Instance ↔ LLM Gateway | Async generator / streaming iterator | Gateway yields token chunks; agent accumulates them |
-| Conversation Manager ↔ WebSocket Server | Event emitter or callback | Manager emits `message:token` and `message:complete` events; WS handler broadcasts |
-| Context Service ↔ Storage | Read-through cache | Check in-memory cache first; fall back to DB; write-through on new messages |
-
-## Build Order Implications
-
-The component dependency graph dictates this build sequence:
-
-1. **Storage layer first** — DB schema, migrations, message/room CRUD. Everything reads and writes here.
-2. **LLM Gateway second** — Can be tested independently against real APIs. Validates provider integrations before any agent logic.
-3. **Agent Instance + Context Service third** — Depends on gateway (to call LLMs) and storage (to retrieve history). This is the core intelligence layer.
-4. **Conversation Manager fourth** — Depends on agents and context service. The turn loop can be tested with mocked agents before UI exists.
-5. **WebSocket Server fifth** — Connects manager events to client. Depends on manager being functional.
-6. **REST API sixth** — Thin wrappers; depends on storage and manager.
-7. **Frontend last** — All backend contracts must be stable. UI can be built against a running backend.
-
-This order means phases can ship incrementally: a working CLI conversation (no UI) is testable after step 4.
+---
 
 ## Sources
 
-- [Google Cloud: Multi-agent AI System Architecture](https://docs.cloud.google.com/architecture/multiagent-ai-system) — Reference architecture, component roles, A2A and MCP protocols
-- [Google Developers Blog: Architecting Efficient Context-Aware Multi-Agent Framework](https://developers.googleblog.com/architecting-efficient-context-aware-multi-agent-framework-for-production/) — Session/working context/processor separation, context scoping pattern
-- [AutoGen 0.2: Multi-Agent Conversation Framework](https://microsoft.github.io/autogen/0.2/docs/Use-Cases/agent_chat/) — ConversableAgent, turn-taking mechanism, GroupChatManager pattern
-- [AG2: Orchestration Patterns](https://docs.ag2.ai/latest/docs/user-guide/advanced-concepts/orchestration/group-chat/patterns/) — Speaker selection strategies: round-robin, random, LLM-driven
-- [Microsoft Azure: AI Agent Design Patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns) — Group chat orchestration, star topology
-- [Render: Real-Time AI Chat WebSockets Infrastructure](https://render.com/articles/real-time-ai-chat-websockets-infrastructure) — Web service + background worker + cache pattern for streaming
-- [ProxAI: The LLM Abstraction Layer](https://www.proxai.co/blog/archive/llm-abstraction-layer) — LLM gateway pattern rationale
-- [Codebridge: Multi-Agent Orchestration Guide 2026](https://www.codebridge.tech/articles/mastering-multi-agent-orchestration-coordination-is-the-new-scale-frontier) — Context engineering, token bloat, pub/sub patterns
-- [getmaxim.ai: Context Window Management Strategies](https://www.getmaxim.ai/articles/context-window-management-strategies-for-long-context-ai-agents-and-chatbots/) — Sliding window, summarization, agent scoping
+- Direct codebase analysis: `src/lib/conversation/manager.ts` (turn loop, abort control)
+- Direct codebase analysis: `src/lib/conversation/context-service.ts` (buildContext, detectRepetition)
+- Direct codebase analysis: `src/lib/conversation/speaker-selector.ts` (strategy patterns)
+- Direct codebase analysis: `src/lib/llm/gateway.ts` (streamLLM, generateLLM signatures)
+- Direct codebase analysis: `src/lib/sse/stream-registry.ts` (emitSSE, event types)
+- Direct codebase analysis: `src/stores/chatStore.ts` (StreamingState, completeTurn, token totals)
+- Direct codebase analysis: `src/db/schema.ts` (messages.inputTokens, messages.model columns)
+- Project context: `.planning/PROJECT.md` (v1.1 milestone requirements)
 
 ---
-*Architecture research for: Agents Room — multi-agent AI chat (personal, single-user)*
-*Researched: 2026-03-19*
+
+*Architecture research for: Agents Room v1.1 — Conversation Quality & Polish*
+*Researched: 2026-03-20*

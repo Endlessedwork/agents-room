@@ -1,315 +1,318 @@
 # Pitfalls Research
 
-**Domain:** Multi-agent AI chat room (LLM-based, multi-provider, real-time)
-**Researched:** 2026-03-19
-**Confidence:** HIGH (multiple sources, confirmed by academic research and practitioner post-mortems)
+**Domain:** Adding conversation quality improvements, cost estimation, parallel first round, and convergence detection to an existing multi-agent chat system
+**Researched:** 2026-03-20
+**Confidence:** HIGH (existing codebase inspected, academic research confirmed, multi-source verification)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Infinite Conversation Loops With No Hard Termination
+### Pitfall 1: Hardcoded Pricing Goes Stale Within Weeks
 
 **What goes wrong:**
-Agents keep responding to each other indefinitely. Without explicit turn limits, a "ping-pong" emerges: Agent A asks a question, Agent B gives an answer that prompts Agent A to respond, which prompts Agent B to clarify, forever. API costs spike uncontrollably and the UI floods with hundreds of messages in seconds. Real cases report $40+ in API fees burned in minutes with no useful output.
+You embed a lookup table mapping model IDs to $/million-token rates. Three weeks later, Anthropic drops Claude Sonnet 4 pricing 40%, OpenRouter adds new models with different rate structures, and Gemini introduces separate rates for long-context vs. short-context calls. Your cost estimates are silently wrong. Users see "$0.03 per conversation" when the real cost is $0.01 or $0.08. Worse: when models you don't have in the table are used (e.g., a user configures a custom OpenRouter model), the cost display shows $0.00 or crashes.
 
 **Why it happens:**
-Most developers wire up "Agent A talks, Agent B responds" without defining what "done" means. LLMs are trained to be helpful — they almost never say "I have nothing more to add." Without an external termination condition, the conversation has no natural exit.
+LLM pricing dropped roughly 80% between early 2025 and early 2026. Providers change pricing every 1-3 months. Any static data structure representing prices decays immediately. Developers build the table once at implementation time and it becomes archaeology.
 
 **How to avoid:**
-- Every conversation session must have a hard `max_turns` limit (e.g., 20 per session, configurable per room).
-- Implement a termination function that detects completion signals: "Final answer:", "DONE", or consensus reached.
-- Add semantic cycle detection: hash recent messages and halt if the same content repeats 2+ times.
-- Use defense-in-depth — both turn limits AND termination checks, not one or the other.
+- Design the pricing layer with explicit coverage gaps: show "~$X.XX est." only when you have data; show "— (pricing unavailable)" when you don't. Never show $0.00 for a model where the true cost is unknown.
+- Store pricing data in a config file (e.g., `pricing.json`) that is trivially editable, not compiled into source code. One-line updates without touching logic code.
+- Scope the initial implementation to cover only the specific models configured in the seed data. Don't attempt to cover every possible model.
+- Document the pricing date in the config file itself: `"last_updated": "2026-03-20"`.
+- Accept that estimates will be imprecise — "~$0.04 (estimated)" is much more useful than false precision at stale rates.
 
 **Warning signs:**
-- Message count climbs past 10 without the topic advancing.
-- Two agents are only responding to each other's immediately prior message (no synthesis).
-- API cost meter is moving faster than 1 message per second.
+- A model ID appears in the room that has no corresponding entry in the pricing table and the UI shows $0.00.
+- Cost totals don't change when switching between an expensive and cheap model.
+- The pricing table was written more than 4 weeks ago without a review.
 
-**Phase to address:** Phase 1 (Core agent loop). Never build the conversation loop without termination — it is not an optimization, it is a correctness requirement.
+**Phase to address:** Cost estimation phase. Design the unknown-model fallback before building the happy path.
 
 ---
 
-### Pitfall 2: Runaway Token Costs With No Budget Guard
+### Pitfall 2: Parallel First Round Creates a SQLite Write Contention Problem
 
 **What goes wrong:**
-Multi-agent means multiplied costs. Three agents in a room means 3x token consumption per conversation turn. Add retry logic, long context histories being re-sent each turn, and a loop that runs 20+ turns, and a single conversation can cost 10-50x what a solo chat would. Without a hard spending cap, a background process or forgotten room can silently run up significant API costs.
+The parallel first round fires multiple `streamLLM` calls concurrently via `Promise.all`. Each resolves with a full response, then tries to `db.insert(messages)` simultaneously. `better-sqlite3` is synchronous and single-writer — concurrent async inserts from different Node.js event loop ticks serialized through the same connection will not cause corruption, but a higher-level race exists: two agents finishing at nearly the same time both call `db.query.rooms.findFirst` to check status, see 'running', and proceed to write. If `stop()` is called mid-parallel-round, the abort signal only cancels in-flight LLM streams; the already-completed responses still write to DB after the stop.
 
 **Why it happens:**
-Token cost is invisible at development time. `max_tokens` controls output size, not total spend. Developers focus on getting agents to talk and defer cost management to "later." Later never comes.
+The existing `ConversationManager` is built around a sequential loop where one turn completes before the next begins. The abort/stop model assumes the currently-active controller is the one stream being aborted. Parallelism breaks this assumption: there is no single abort controller for "all parallel first-round calls."
 
 **How to avoid:**
-- Implement per-conversation token budget tracking. Count input + output tokens per turn, cumulate across agents.
-- Set hard circuit breakers: if a conversation exceeds N total tokens (e.g., 50k), pause and alert.
-- Track cost per room, not just per message.
-- Use cheaper models for agents doing "commentary" roles vs. agents doing synthesis.
-- Store the per-provider cost-per-token and surface live cost estimates in the UI.
+- Allocate one `AbortController` per agent in the parallel round, stored as an array. Register the array in the `activeControllers` map under a composite key or replace the scalar controller with an array.
+- Before persisting any parallel-round response, check if the room status is still 'running' after the LLM call returns. Discard responses from rooms that were stopped mid-round.
+- Wrap all parallel-round DB inserts in a check: `if (aborted) return` before calling `db.insert`.
+- The sequential loop already exists and works. The parallel round is a single-round deviation at the start; after round 1, re-enter the existing sequential loop. Keep the parallel scope minimal.
 
 **Warning signs:**
-- No token accumulator in the conversation session object.
-- Context history is passed in full on every turn with no truncation or summarization.
-- No cost column in the conversation log.
+- `stop()` is called while the first round is in progress and messages still appear after the stop.
+- Two messages from different agents have identical `createdAt` timestamps (SQLite `unixepoch()` is second-resolution — two inserts within the same second get the same timestamp, breaking ordering).
+- Test: call `stop()` 200ms into a parallel round; verify zero messages persisted after the stop.
 
-**Phase to address:** Phase 1 (Agent runner). Budget tracking must be built alongside the first working conversation loop, not retrofitted.
+**Phase to address:** Parallel first round phase. Resolve the abort-during-parallel-round scenario before shipping.
 
 ---
 
-### Pitfall 3: Context Rot — Agents Forget Their Role Over Long Conversations
+### Pitfall 3: Convergence Detection Fires on Sycophantic Agreement, Not Genuine Consensus
 
 **What goes wrong:**
-As conversation history grows, the system prompt (role definition, persona, constraints) gets buried under dozens of prior messages. LLMs suffer "context rot" — accuracy measurably decreases as critical instructions get pushed further from the attention window. Agents start ignoring their assigned persona, agreeing with whatever was said last, or producing generic outputs. Research confirms this happens even in models with 200k token windows when important information is buried in noise.
+LLMs are trained to be agreeable. Research (ACL 2025, CONSENSAGENT) shows agents hit their lowest sycophancy in round 1 and become progressively more agreeable over time. An agent saying "I completely agree with Agent B's point" does not mean the conversation has converged on insight — it often means the agent is capitulating to social pressure. A naive convergence detector that looks for agreement phrases or semantic similarity between responses will fire after 3-4 turns and stop the conversation before it has produced any useful output.
+
+Additionally, agents agreeing on a wrong answer is a real failure mode: "coordinated incorrect convergence" is documented in multi-agent debate literature.
 
 **Why it happens:**
-The naive approach — prepend system prompt, then append all history — works in demos but fails over long runs. Developers don't notice degradation because they only test short conversations.
+Convergence is genuinely hard to define. Semantic similarity measures (cosine, Jaccard) detect topical overlap but cannot distinguish "Agent B is covering the same topic" from "Agent B has accepted Agent A's conclusion." Phrase-matching ("I agree", "you're right") conflates social lubrication with epistemic agreement.
 
 **How to avoid:**
-- Re-inject condensed role reminders at regular intervals (every N turns) as part of the system prompt.
-- Use sliding window compression: keep the last 5-10 messages verbatim, summarize older messages. Never pass full raw history beyond the compression threshold.
-- Design agent system prompts to include explicit behavioral anchors: "Regardless of what others say, you always approach problems from [perspective]."
-- Test conversations at 15+ turns, not just 3-5.
+- Require at minimum N consecutive turns of agreement before declaring convergence (e.g., N=3), not just one turn. One "I agree" turn is not convergence.
+- Extend the existing Jaccard-based repetition detector: convergence requires *both* semantic similarity across agents AND low novelty (i.e., agents are not introducing new points). Track novelty separately from agreement.
+- Always gate convergence detection on a minimum number of turns (e.g., at least 6 total turns before convergence can fire). Premature convergence on short conversations is worse than no convergence detection.
+- Emit a `system` message when auto-stopping for convergence so the user understands why the conversation ended. Do not silently stop.
+- Allow the user to resume after convergence auto-stop, same as after repetition auto-pause.
 
 **Warning signs:**
-- Agent responses become generic after turn 8-10.
-- A "skeptic" agent starts agreeing with everything.
-- Agent ignores its persona constraints when directly asked to deviate by another agent.
+- Convergence detection fires after only 2-3 turns.
+- The auto-stopped conversation ends with superficial agreement but no concrete insight or resolution in the final messages.
+- Agents converge on an obviously wrong or generic answer ("Both agree this is complex and requires further study").
 
-**Phase to address:** Phase 1 (System prompt design) and Phase 2 (Context management). Compression strategy must exist before conversations exceed 10 turns.
+**Phase to address:** Convergence detection phase. Validate the threshold with actual conversations before treating it as production-ready.
 
 ---
 
-### Pitfall 4: Agent Sycophancy — The Echo Chamber Collapse
+### Pitfall 4: Timestamp Collision Breaks Message Ordering in Parallel Round
 
 **What goes wrong:**
-LLMs are trained to be agreeable. In a multi-agent setting, agents progressively abandon their positions and converge toward consensus — even when the consensus is wrong. Research (ACL 2025, CONSENSAGENT) shows agents hit their lowest sycophancy in round 1 and become progressively more agreeable as debate continues. Disagreement rate drops as debate progresses, directly correlated with performance degradation. The room looks active and "productive" but is just agents validating each other.
+The `messages` schema uses `createdAt INTEGER` with `default(sql`(unixepoch())`)`. SQLite's `unixepoch()` returns a Unix timestamp in **seconds**. Two messages inserted within the same second get the same `createdAt` value. In the sequential loop this is fine because inserts happen seconds apart. In a parallel first round, all agents complete and insert within a tight window — potentially within the same second. The MessageFeed renders messages in `createdAt` order, so two messages with the same timestamp render in arbitrary (insert-order, not guaranteed) sequence.
 
 **Why it happens:**
-Agreement is reinforced in RLHF training. When Agent B says "Good point, Agent A", Agent A's next generation is biased toward accepting whatever Agent B says next. Without architectural resistance to convergence, consensus emerges from social pressure, not reasoning.
+Second-resolution timestamps are invisible as a problem in sequential flows. The parallel case is new and the existing schema was never stress-tested for sub-second insert ordering.
 
 **How to avoid:**
-- Assign agents explicit adversarial roles: one agent must always find the flaw in the previous argument.
-- Include in each agent's system prompt: "Your job is to maintain your position unless given a logically compelling reason to change it. Simply being disagreed with is not sufficient reason to change your view."
-- After N turns, inject a "devil's advocate" prompt as the user's voice to force reconsideration.
-- Track position change rate per agent — if an agent reverses position 3+ times in 5 turns, flag it.
+- Add a `turnNumber INTEGER` column to the `messages` schema, incremented per agent in the parallel round (agent at position 0 gets turn 0, position 1 gets turn 1, etc.). Use this as a tiebreaker in `ORDER BY createdAt ASC, turnNumber ASC`.
+- Alternative: change the timestamp to millisecond resolution using `Date.now()` in application code instead of SQLite's `unixepoch()`. Both approaches work; the turn-number approach is more explicit.
+- Migration required: add the column with `DEFAULT 0` so existing messages are unaffected.
 
 **Warning signs:**
-- All agents are agreeing by turn 5.
-- Agents are using phrases like "You make an excellent point" repeatedly.
-- The final conversation summary is just the first agent's view, endorsed by all others.
+- On a page refresh after a parallel first round, the agent message order differs from the order they appeared during streaming.
+- Two messages show exactly the same timestamp in the message details.
 
-**Phase to address:** Phase 1 (System prompt design). Build in adversarial role structures from day one. This cannot be patched in later without re-architecting personas.
+**Phase to address:** Parallel first round phase. Fix schema before implementing the parallel round logic.
 
 ---
 
-### Pitfall 5: No Turn-Taking Coordinator — Simultaneous Responses Destroy Coherence
+### Pitfall 5: Cost Display Causes Anxiety Without Context
 
 **What goes wrong:**
-Without explicit turn coordination, multiple agents respond to the same message simultaneously. In async/concurrent implementations, two agents generate responses in parallel, and both get appended to the chat. The conversation becomes incoherent — Agent A and Agent B both respond to Agent C's question as if the other hadn't, creating branching threads that don't merge. The user sees chaos, not conversation.
+Raw dollar amounts for LLM costs look alarming without context. "$0.84 spent" on a conversation makes users feel like they're being charged significantly, even when the actual cost is trivially small relative to the value. Conversely, "$0.0003 per message" looks meaningless and users can't gauge whether they're spending a lot or a little. Neither framing helps the user understand their usage.
+
+More concretely: displaying cost as a running real-time number that ticks up during streaming creates psychological discomfort that wasn't there before. The app currently shows token counts, which are abstract; cost is concrete and triggers loss aversion.
 
 **Why it happens:**
-Parallelizing LLM calls for speed is the right instinct. But applying parallelism to conversation turns (as opposed to tool calls within a turn) breaks the fundamental sequential nature of dialogue.
+Cost display is designed by engineers who know the costs are small, not by users experiencing the display for the first time. The information is technically correct but behaviorally counterproductive.
 
 **How to avoid:**
-- Conversation turns must be strictly sequential: one agent speaks, then the next. Never parallel.
-- Implement a turn coordinator/moderator: a state machine that selects who speaks next based on rules (round-robin, topic-directed, user-assigned).
-- The turn coordinator is a lightweight decision-maker, not a full LLM call — use heuristics or a cheap model call, not full generation.
-- Queue messages per room; never allow concurrent writes to the room timeline.
+- Display cost as a session total, not a per-message real-time update. Let it update after each turn completes, not during streaming.
+- Show the cost in context: "$0.04 this conversation" rather than just "$0.04".
+- For the personal-tool use case, display "est." prefix on all figures to set expectation that these are approximate.
+- Do not make cost the most prominent element. It's a secondary metric. Token counts (already displayed) provide the abstract signal; cost is a gloss on top.
 
 **Warning signs:**
-- Two messages from different agents appear in the same second with overlapping content.
-- Agents reference things that haven't been said yet (read from partially-written state).
-- The UI message order is non-deterministic on refresh.
+- The cost figure updates every token during streaming (causes visual jitter and anxiety).
+- The UI shows cost without the "est." qualifier, implying billing precision that a static pricing table cannot provide.
+- First-time use: the user's reaction to the cost display is surprise or concern rather than "useful to know."
 
-**Phase to address:** Phase 1 (Room/conversation architecture). The sequential turn model must be the foundation — concurrency cannot be bolted on top later without a rewrite.
+**Phase to address:** Cost estimation phase. Test the display with realistic conversation costs before shipping.
 
 ---
 
-### Pitfall 6: Multi-Provider API Differences Leak Into Business Logic
+### Pitfall 6: Conversation Quality Improvements That Break Existing Tests
 
 **What goes wrong:**
-Claude, GPT-4, and Gemini have different request formats, response structures, streaming behaviors, error codes, and token counting methods. Without a proper abstraction layer, provider-specific handling spreads throughout the codebase. Switching an agent from Claude to GPT requires touching 15 files. A Gemini-specific error format crashes the Claude agent handler. Adding a new provider takes a week instead of an afternoon.
+Improving the system prompts injected by `ContextService.buildContext` — adding conversational anchors, role reminders, or quality-directing instructions — changes the exact string passed to `streamLLM`. Any test that asserts on the exact system prompt string will fail. More subtle: if quality improvement changes how `ContextService` builds the message array (e.g., filtering messages differently, inserting a quality-reminder at a specific position), the 121 existing passing tests may break in ways that are correct behavior but require test updates.
 
 **Why it happens:**
-The first working integration always uses the provider's native SDK. It works. There's no immediate pain. By the time the second provider is added, the first provider's patterns are baked in everywhere.
+Tests for `ContextService` are written against the current implementation. When the implementation deliberately changes (improvement, not bug), tests fail as false negatives. The risk is: developer sees 10 failing tests and reverts the quality improvement thinking it broke something, when actually the tests just needed updating.
 
 **How to avoid:**
-- Define an internal `LLMProvider` interface on day one, before writing the first real provider call.
-- All agent code calls the interface, never the provider SDK directly.
-- Implement the interface for one provider first, then the second immediately — don't wait until you "need" multi-provider.
-- Use LiteLLM or a similar abstraction library as the foundation (it handles format normalization, streaming, and retries across providers).
-- Normalize all errors to internal error types at the adapter boundary.
+- Before any changes to `ContextService`, read the existing test file (`tests/conversation/context-service.test.ts`) and identify which assertions are about *exact output strings* vs. *structural properties* (e.g., "starts with user role", "contains the topic").
+- Structural assertions are valid and should be preserved. Exact string assertions should be updated to match the new quality-improved output.
+- Run the test suite before and after each quality change. A diff of failing tests is the work list.
+- If adding a new quality feature (e.g., "inject a quality directive every 5 turns"), test it in isolation before combining with other changes.
 
 **Warning signs:**
-- `if provider == 'claude'` conditionals appear outside the adapter layer.
-- Response parsing code references provider-specific field names (`.choices[0].message` vs. `.content[0].text`).
-- Adding a new provider requires modifying the agent runner.
+- More than 5 tests fail after a prompt wording change — likely means test strings were copy-pasted from old output.
+- The test failures are in `context-service.test.ts` and `manager.test.ts` simultaneously — means a shared behavior changed.
+- Tests pass but the quality behavior is not verified (no new tests were added for the new behavior).
 
-**Phase to address:** Phase 1 (Provider abstraction). This is a foundational architectural decision. Delaying it past the first provider integration makes it a painful refactor.
+**Phase to address:** Conversation quality phase. Test-first: read existing tests before touching `ContextService`.
 
 ---
 
-### Pitfall 7: Prompt Injection Propagation Across Agents
+### Pitfall 7: Parallel First Round Changes the "First Message" Assumption in ContextService
 
 **What goes wrong:**
-An agent receives a message containing a prompt injection payload ("Ignore your previous instructions and..."). It generates a response influenced by that injection. The next agent in the conversation receives that response as trusted context and inherits the injection. A compromised agent can corrupt the entire chain. Research shows this "second-order" injection is used in real attacks — a low-privilege agent tricks a higher-privilege agent into performing unauthorized actions.
+`ContextService.buildContext` has special handling for the first message: if the message history is empty or starts with an assistant turn, it injects the room topic as a seeding `user` message. This works correctly for the sequential loop where the first agent goes first. In a parallel first round, all agents call `buildContext` with an empty room history simultaneously. Every agent gets the same topic-seeded context, which is correct. But after the parallel round, the message history has multiple agent messages at position 0-N. On the first turn of the sequential loop after the parallel round, `buildContext` reads history that starts with multiple `agent` role messages — the "starts with assistant" case triggers and re-injects the topic, creating a duplicate topic injection visible in the context.
 
 **Why it happens:**
-Developers treat all messages in the conversation history as equally trusted. Agent-generated content is assumed safe because "it came from our system." But agent output is generated from user-influenced inputs and must be treated as untrusted.
+The existing seeding logic was designed for a single first message. When multiple messages exist from the start (all from the parallel round), the head-of-history check fires unexpectedly.
 
 **How to avoid:**
-- Sanitize or rate-limit special instruction patterns in user-supplied messages (ignore previous instructions, act as, etc.).
-- Never allow user messages to directly become part of another agent's system prompt.
-- Treat agent-to-agent messages as untrusted content, not as system-level instructions.
-- For this personal tool: since it's single-user, this is lower priority — but the user's own accidental or test injections can still corrupt conversations, so basic sanitization is still worthwhile.
+- The seed injection condition should check whether the room topic has already appeared in the history, not just whether the first message has a `user` role.
+- Simpler: in the parallel round, explicitly insert a `user`-role "Discussion topic" system message to the DB before firing the parallel round. This becomes the actual first message in history, and `buildContext`'s existing logic works correctly because the history always starts with that user seed message.
+- The latter approach (explicit DB seed) is cleaner and requires no logic change to `ContextService`.
 
 **Warning signs:**
-- An agent's persona changes mid-conversation without a user control action.
-- Agents stop following their assigned roles after a specific user message.
-- An agent starts issuing instructions to other agents that weren't in the original design.
+- After a parallel first round, the first sequential turn's context has two consecutive "Discussion topic:" user messages.
+- Unit test: run `buildContext` against a history that starts with 3 agent messages and verify the topic is injected exactly once.
 
-**Phase to address:** Phase 2 (User participation). When the user can type into the room, sanitization must be applied before injecting user messages into agent context.
+**Phase to address:** Parallel first round phase. Add this edge case to the acceptance criteria before shipping.
+
+---
+
+### Pitfall 8: Tech Debt Cleanup Introduces Regressions via Incomplete Dead Code Removal
+
+**What goes wrong:**
+`ConversationPanel.tsx` is documented as orphaned. If it is deleted without checking all import paths, any file that still imports it will throw a module-not-found error at build time. More insidiously: if a file imports it with a dynamic `import()` or if it's referenced in a barrel export, the error only appears at runtime, not build time. Fixing type errors in test files can also unintentionally change behavior if a type assertion was hiding a real type mismatch that existed in production code.
+
+**Why it happens:**
+Dead code is rarely as dead as it appears. IDEs' "find usages" can miss dynamic imports, string-based requires, and indirect references through re-export files.
+
+**How to avoid:**
+- Before deleting `ConversationPanel.tsx`: run `grep -r "ConversationPanel" src/` and check all results. Verify there are no dynamic imports.
+- Fix type errors in test files by fixing the actual type, not by casting with `as unknown as X`. Type casts in tests hide real problems.
+- After any dead code deletion, run `npm run build` to confirm no build errors before running tests. Build errors are faster to find than runtime errors.
+- Make type-error fixes and dead code removal separate commits from feature changes. This makes regressions attributable to specific changes.
+
+**Warning signs:**
+- Running `tsc --noEmit` shows errors in files other than the one you just edited.
+- A test passes after changing it to use `as any` instead of fixing the underlying type.
+- The over-fetching fix (room detail endpoint) accidentally removes a field that another component was relying on.
+
+**Phase to address:** Tech debt cleanup phase. Always precede cleanup with a grep scan and a build run.
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable but create long-term problems.
+Shortcuts specific to v1.1 additions.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Pass full conversation history to every agent on every turn | Simple implementation, agents have full context | O(n²) token cost growth; context rot after 10+ turns; slow responses | Never — use sliding window from the start |
-| Use provider SDK directly instead of abstraction layer | Faster first integration | Adding second provider requires touching all agent code | Never — define interface first |
-| Skip turn coordinator, let agents fire in parallel | Faster agent responses | Incoherent conversations, non-deterministic message ordering | Never for conversation turns (fine for tool calls within a turn) |
-| Hardcode max_turns=100 "to be safe" | Easy to implement | Hides loop bugs; still risks $40+ bills on stuck conversations | Only in dev with fake/mocked LLM |
-| Store all history as flat JSON blob per room | Simple schema | No ability to query specific messages, summarize, or paginate; migration is painful | MVP only if schema is versioned and migration path documented |
-| No streaming — wait for full response | Simpler response handling | Dead UI while agents are "thinking"; poor UX for 5-30s generation times | Never — streaming is required for real-time feel |
+| Hardcode prices in TypeScript source constants | No config file needed | Prices stale within weeks; requires code change to update | Never — move to JSON config immediately |
+| Show $0.00 for unknown models instead of "—" | No fallback UI needed | Users think free models cost nothing; masks missing data | Never |
+| Skip the minimum-turns guard in convergence detection | Simpler implementation | Fires after 2 turns of politeness, stops productive conversations | Never |
+| Reuse the existing single AbortController for parallel round | No API change to ConversationManager | Cannot abort individual agents mid-parallel-round; stop() leaves orphaned responses | MVP only if parallel round is fire-and-forget with no stop path |
+| Use second-resolution timestamps for ordering | No schema change needed | Message order is non-deterministic within parallel-round inserts | Only if parallel round is artificially serialized (defeats the purpose) |
+| Overwrite PITFALLS.md from v1.0 with v1.1 content | Clean file | v1.0 pitfalls remain relevant as the foundation | Acceptable only if v1.0 pitfalls are preserved in a separate section |
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external LLM services.
+Specific to the new features being added.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Anthropic Claude API | Using `max_tokens` to control cost, not conversation length | Track cumulative input+output tokens across all turns; `max_tokens` only controls output per call |
-| OpenAI API | Treating 429 rate limit errors as failures and crashing | Implement exponential backoff with jitter; route to fallback model if primary is rate-limited |
-| Gemini API | Assuming same message format as OpenAI | Gemini uses `parts` not `content`; use abstraction layer to normalize |
-| All providers | Streaming response handling — assuming each chunk is a complete token | Buffer chunks before processing; partial JSON in a chunk will break naive parsers |
-| All providers | Counting tokens with `len(text.split())` | Use provider's tokenizer (tiktoken for OpenAI, Anthropic's token counting API) — word count can be off by 30-50% |
-| All providers | Treating context window limit as a hard error | Track token budget proactively; summarize before hitting the limit, not after the API returns a 400 |
+| OpenRouter cost | Assuming all models have the same per-token rate; some charge per-request minimums | Check OpenRouter's pricing page; some models have floor prices per call regardless of token count |
+| Ollama cost | Treating local models as "$0.00 cost" | Electricity and compute cost is real but unmeasurable; display "local model — no API cost" rather than $0.00 |
+| Vercel AI SDK `usage` field | Assuming `result.usage` is always populated | Some providers/models return `null` usage; the existing gateway already handles this but the cost layer must also guard against null |
+| Parallel `Promise.all` for LLM calls | Assuming all providers have equivalent concurrency limits | Anthropic allows high concurrency; Ollama is single-threaded locally; parallel round with a local Ollama agent is effectively sequential |
+| Convergence detection + LLM-selected speaker | Checking convergence after every turn and using that result to influence the LLM speaker selector | Run convergence check after each turn independently; do not feed convergence signal into the speaker selector prompt (creates circular dependency) |
 
 ---
 
 ## Performance Traps
 
-Patterns that work in development but cause problems in extended use.
-
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Full history in every prompt | Response time grows linearly with conversation length; costs climb per turn | Sliding window: verbatim last 8 messages + summarized older messages | After turn 10-15 in a 3-agent room |
-| Synchronous LLM call blocks UI thread | UI freezes during agent generation; no streaming indicators | Async agent runner with SSE/WebSocket streaming to frontend | Every API call (0% scale threshold) |
-| No message queue for agent turns | Race conditions when user sends message while agent is mid-response | Queue all room events; process turn-by-turn with acknowledgment | Any concurrent interaction |
-| In-memory conversation state only | State lost on server restart; conversations not resumable | Persist each message to DB immediately upon generation | First server restart |
-| Re-reading full DB history on every turn to build context | DB queries multiply with conversation length | Cache active conversation context in memory; only persist, don't re-read | After ~30 messages in an active room |
+| Computing cost on every token event during streaming | Cost UI jitters; unnecessary recalculations per token | Compute cost after `turn:end` when final token counts are known | Every streaming message |
+| Running Jaccard convergence check against all messages in room | Query time grows with conversation length | Apply convergence window (same as repetition window: last 5-6 messages) | After ~30 messages |
+| Parallel first round with 4+ agents on slow providers | UI appears frozen for 15-20s while all agents are "thinking" simultaneously | Show individual per-agent thinking indicators during parallel round, not a single global spinner | 3+ agents with >5s generation time |
+| Fetching pricing table from network on every cost calculation | Latency added to every turn, network dependency for local app | Bundle pricing config with the app; reload only on startup | Any network-dependent cost path |
 
 ---
 
 ## Security Mistakes
 
-Domain-specific security issues (note: single-user personal tool reduces attack surface considerably).
+Personal tool — attack surface is narrow. Pitfalls are operational, not adversarial.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Storing API keys in frontend code or localStorage | Keys exposed if browser storage is inspected | Keys stay server-side only; frontend never touches raw provider keys |
-| Logging full conversation content including user messages | Conversation data leaks in server logs | Log metadata (turn count, token count, agent IDs) not message content, or use structured logging with content redacted by default |
-| No rate limiting on conversation start | If tool is accidentally exposed, someone could trigger costly API calls | Even for personal tools, require local network or simple token auth before starting a conversation |
-| Injecting user message text directly into agent system prompts | User input can override agent behavior | Keep user messages in the `user` role, never in `system` role |
+| Pricing config file that can be edited by room topic input | Crafted topic causes path traversal to pricing file | Pricing data is read-only at startup; never written based on user input |
+| Displaying exact cost to the cent | User over-optimizes to "free" models, degrading conversation quality | Display as "est." to communicate imprecision; cost is informational, not billing |
 
 ---
 
 ## UX Pitfalls
 
-Common user experience mistakes specific to this domain.
-
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No visual distinction between agents | Impossible to follow who's saying what in fast conversations | Consistent color + avatar per agent; never change them mid-conversation |
-| No streaming — wall of text appears all at once | User has nothing to watch during 10-30s generation; feels broken | Stream tokens as they're generated; animate the typing indicator |
-| No way to stop a runaway conversation | User watches helpless as 50 messages pile up | Prominent "Stop" button that halts all agent turns and cancels in-flight API calls |
-| Agent responses are too long by default | Conversations become unreadable essay dumps | Instruct agents in system prompt: "Keep responses under 150 words unless depth is specifically requested" |
-| No conversation summary at room entry | User re-opens a room and has no idea what was discussed | Auto-generate a 2-3 sentence summary when conversation is paused/ended; show it at room header |
-| User message doesn't feel different from agent messages | User loses track of where they intervened | Visually distinguish user messages (different alignment, color, or "You" label) |
+| Convergence auto-stop with no explanation message | User confused why conversation stopped early | Emit a system message: "[Auto-stopped: agents appear to have reached consensus]" with a resume option |
+| Cost figure updates during streaming (per-token) | Visual jitter; anxiety about cost growing in real time | Update cost only after `turn:end` event when final token count is known |
+| Parallel first round looks the same as sequential to the user | Value of parallel round is invisible | Consider a subtle UI indicator during the first round: "Independent responses..." |
+| Cost display with no pricing-date disclosure | User trusts stale estimate as accurate | Include a small "Pricing as of [date]" note near cost display |
+| Convergence stopped a conversation that wasn't actually done | User has no way to continue without losing context | Convergence auto-stop should pause (like repetition does), not stop — preserves resume path |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-Things that appear complete in demos but are missing critical pieces for real use.
-
-- [ ] **Conversation termination:** Demo runs 5 turns cleanly — verify it also terminates correctly at turn 20, at token budget limit, and when user hits Stop.
-- [ ] **Context compression:** Works in a 3-turn demo — verify agents still behave correctly at turn 15 with history compression active.
-- [ ] **Multi-provider routing:** Claude works — verify GPT agent in the same room doesn't interfere, that errors from one provider don't crash the other agent's turn.
-- [ ] **Cost tracking:** Token counts are logged — verify they accumulate correctly across all agents in a room, not just the last one to respond.
-- [ ] **Streaming real-time:** Messages appear — verify they appear as tokens stream in, not only after generation completes.
-- [ ] **Conversation persistence:** Messages are saved — verify they are queryable with correct ordering after a server restart.
-- [ ] **Agent persona stability:** Agents have distinct voices in turn 1 — verify personas hold at turn 12 and 20, especially after user messages.
-- [ ] **Stop/interrupt:** UI has a stop button — verify in-flight API calls are actually cancelled, not just the UI display stopped.
+- [ ] **Cost estimation:** Shows a number — verify unknown models display "—" not "$0.00", and that Ollama shows "local model" not a number.
+- [ ] **Cost estimation:** Demo conversation looks right — verify the total accumulates correctly across all agents, including after a resume.
+- [ ] **Parallel first round:** Agents respond independently — verify calling `stop()` mid-parallel-round results in zero persisted messages from that round.
+- [ ] **Parallel first round:** Responses appear in UI — verify message ordering after the round is deterministic and matches agent positions.
+- [ ] **Convergence detection:** Fires after 10 turns of genuine agreement — verify it does NOT fire after 2-3 turns of polite agreement phrases.
+- [ ] **Convergence detection:** Stops conversation — verify it emits a system message explaining why and the room status is 'paused' (resumable), not 'idle'.
+- [ ] **Tech debt cleanup:** ConversationPanel.tsx deleted — verify `npm run build` passes with no module-not-found errors.
+- [ ] **Tech debt cleanup:** Type errors fixed — verify `tsc --noEmit` shows zero errors after fixes, and no `as any` casts were added.
+- [ ] **Quality improvements:** System prompt changes made — verify existing tests updated to match new output, and new tests added for new behavior.
 
 ---
 
 ## Recovery Strategies
 
-When pitfalls occur despite prevention, how to recover.
-
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Infinite loop already ran up large API bill | LOW (money is spent; fix is cheap) | Add hard turn limits immediately; review provider billing for anomalous usage; add circuit breaker |
-| Full conversation history being sent each turn | MEDIUM (requires context refactor) | Implement sliding window summarizer; migrate existing conversations by summarizing their older segments |
-| Tightly coupled provider SDK throughout codebase | HIGH (full refactor) | Extract all provider calls to adapter classes one provider at a time; use strangler fig pattern |
-| Echo chamber — agents always agree | LOW-MEDIUM | Update system prompts with adversarial role instructions; add mandatory dissent turns in turn coordinator |
-| No streaming — poor UX | MEDIUM | Refactor agent runner to use streaming response callbacks; update frontend to handle token events |
-| No cost tracking — unknown spend | LOW | Add token counting middleware to provider adapters; query provider billing APIs for historical data |
+| Stale pricing table discovered | LOW | Update the JSON config file with current prices; no code change required if config is external |
+| Convergence fires too aggressively (too many false positives) | LOW | Increase minimum-turns threshold; users can resume, conversations aren't lost |
+| Parallel round creates ordering bugs discovered in production | MEDIUM | Add `turnNumber` column via migration; reorder MessageFeed query |
+| Quality prompt changes broke existing tests | LOW | Update test assertions to match new output; no behavior regression, only output format |
+| Dead code deletion broke a build | LOW | Revert the deletion; add the missing file back; grep all imports before re-deleting |
 
 ---
 
 ## Pitfall-to-Phase Mapping
 
-How roadmap phases should address these pitfalls.
-
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Infinite conversation loops | Phase 1 — Core agent loop | Conversation always terminates within configured max_turns; no hanging processes after test runs |
-| Runaway token costs | Phase 1 — Agent runner | Token counter present in session object; circuit breaker fires in test with synthetic token overflow |
-| Context rot over long conversations | Phase 1 — Prompt design + Phase 2 — Context mgmt | Agent maintains assigned persona at turn 15; history compression is active and measurable |
-| Agent sycophancy / echo chamber | Phase 1 — System prompt design | "Skeptic" agent maintains dissent at turn 10 in structured test; position-change rate is tracked |
-| No turn-taking coordinator | Phase 1 — Room architecture | Message ordering is deterministic; no concurrent agent writes in load test |
-| Multi-provider API leakage | Phase 1 — Provider abstraction | Adding a new mock provider requires only a new adapter class; no changes to agent runner |
-| Prompt injection propagation | Phase 2 — User participation | User message with injection payload does not change agent persona; sanitization unit tested |
+| Stale hardcoded pricing | Cost estimation phase | Unknown model shows "—" in UI; pricing config file is separate from source code |
+| Parallel round abort during stop() | Parallel first round phase | stop() called mid-round results in zero persisted messages |
+| Timestamp collision in parallel round | Parallel first round phase | Message order after round is deterministic on page refresh |
+| ContextService topic double-injection | Parallel first round phase | Context for first sequential turn after parallel round has exactly one topic message |
+| False positive convergence on sycophancy | Convergence detection phase | Convergence requires minimum 6 turns before it can fire; test with polite-but-empty agreement |
+| Convergence stops instead of pauses | Convergence detection phase | Room status after convergence auto-stop is 'paused'; resume works |
+| Quality changes break existing tests | Conversation quality phase | Test suite passes after quality changes; no `as any` additions |
+| Dead code cleanup regressions | Tech debt cleanup phase | `tsc --noEmit` and `npm run build` both pass after cleanup |
+| Cost display anxiety | Cost estimation phase | Cost shows "est." prefix; updates only after turn:end, not per-token |
 
 ---
 
 ## Sources
 
-- [The Multi-Agent Trap — Towards Data Science (March 2026)](https://towardsdatascience.com/the-multi-agent-trap/)
-- [Why Multi-Agent LLM Systems Fail — orq.ai](https://orq.ai/blog/why-do-multi-agent-llm-systems-fail)
-- [Why do Multi-Agent LLM Systems Fail — Galileo](https://galileo.ai/blog/multi-agent-llm-systems-fail)
-- [Challenges in Multi-Agent LLM Collaboration — newline](https://www.newline.co/@zaoyang/challenges-in-multi-agent-llm-collaboration--27f72c0c)
-- [Fix Infinite Loops in Multi-Agent Chat Frameworks — markaicode](https://markaicode.com/fix-infinite-loops-multi-agent-chat/)
-- [Rate Limiting Your Own AI Agent: The Runaway Loop Problem — DEV Community](https://dev.to/askpatrick/rate-limiting-your-own-ai-agent-the-runaway-loop-problem-nobody-talks-about-3dh2)
 - [CONSENSAGENT: Sycophancy Mitigation in Multi-Agent LLM Interactions — ACL 2025](https://aclanthology.org/2025.findings-acl.1141/)
-- [Peacemaker or Troublemaker: How Sycophancy Shapes Multi-Agent Debate — arXiv 2025](https://arxiv.org/html/2509.23055v1)
+- [Peacemaker or Troublemaker: How Sycophancy Shapes Multi-Agent Debate — arXiv 2025](https://arxiv.org/pdf/2509.23055)
 - [Talk Isn't Always Cheap: Failure Modes in Multi-Agent Debate — arXiv 2025](https://arxiv.org/pdf/2509.05396)
-- [Context Engineering: The Real Reason AI Agents Fail in Production — inkeep](https://inkeep.com/blog/context-engineering-why-agents-fail)
-- [Context Rot: Why AI Gets Worse the Longer You Chat — producttalk](https://www.producttalk.org/context-rot/)
-- [Why Your Multi-Agent System is Failing: The 17x Error Trap — Towards Data Science](https://towardsdatascience.com/why-your-multi-agent-system-is-failing-escaping-the-17x-error-trap-of-the-bag-of-agents/)
-- [Multi-Agent Coordination Gone Wrong? Fix With 10 Strategies — Galileo](https://galileo.ai/blog/multi-agent-coordination-strategies)
-- [Why I Stopped Using Provider-Specific LLM SDKs — Medium](https://yonahdissen.medium.com/why-i-stopped-using-provider-specific-llm-sdks-and-why-you-should-too-3943ac13fe60)
-- [Multi-Provider LLM Integration — Aider DeepWiki](https://deepwiki.com/Aider-AI/aider/6.3-multi-provider-llm-integration)
-- [Rate Limiting and Backpressure for LLM APIs — dasroot.net (Feb 2026)](https://dasroot.net/posts/2026/02/rate-limiting-backpressure-llm-apis/)
-- [Who speaks next? Turn-taking in Multi-Party AI Discussion — Frontiers in AI 2025](https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2025.1582287/full)
-- [LLM Security Risks in 2026: Prompt Injection — sombrainc](https://sombrainc.com/blog/llm-security-risks-2026)
+- [LLM API Pricing Comparison (March 2026) — costgoat.com](https://costgoat.com/compare/llm-api)
+- [LLM API Pricing (March 2026) — tldl.io](https://www.tldl.io/resources/llm-api-pricing-2026)
+- [SQLite concurrency and why you should care — Hacker News discussion](https://news.ycombinator.com/item?id=45781298)
+- [Understanding Better-SQLite3: The Fastest SQLite Library for Node.js — DEV Community](https://dev.to/lovestaco/understanding-better-sqlite3-the-fastest-sqlite-library-for-nodejs-4n8)
+- [Concurrent vs. Parallel Execution in LLM API Calls — Towards AI](https://towardsai.net/p/machine-learning/concurrent-vs-parallel-execution-in-llm-api-calls-from-an-ai-engineers-perspective)
+- [Selective agreement, not sycophancy: opinion dynamics in LLM interactions — Springer 2025](https://link.springer.com/article/10.1140/epjds/s13688-025-00579-1)
+- [Context Rot: How Increasing Input Tokens Impacts LLM Performance — Chroma Research](https://research.trychroma.com/context-rot)
+- Existing codebase inspection: `src/lib/conversation/manager.ts`, `context-service.ts`, `speaker-selector.ts`, `db/schema.ts`, `lib/sse/stream-registry.ts`
 
 ---
-*Pitfalls research for: Multi-agent AI chat room (Agents Room project)*
-*Researched: 2026-03-19*
+*Pitfalls research for: Agents Room v1.1 — adding cost estimation, parallel first round, convergence detection, and quality improvements to existing system*
+*Researched: 2026-03-20*
