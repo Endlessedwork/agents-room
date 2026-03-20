@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 
+export function formatTokenCount(n: number): string {
+  if (n === 0) return '0';
+  if (n < 1000) return String(n);
+  return `${Math.round(n / 100) / 10}k`;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'agent' | 'system';
@@ -32,6 +38,7 @@ interface ChatStore {
   streaming: StreamingState | null;
   roomStatus: 'idle' | 'running' | 'paused';
   turnProgress: { current: number; total: number };
+  tokenTotals: { input: number; output: number };
 
   // Actions
   loadHistory: (roomId: string) => Promise<void>;
@@ -56,6 +63,7 @@ interface ChatStore {
   addSystemMessage: (content: string) => void;
   addUserMessage: (msg: { id: string; content: string; createdAt: string }) => void;
   setRoomStatus: (status: 'idle' | 'running' | 'paused') => void;
+  updateTokenTotals: (inputTokens: number, outputTokens: number) => void;
   reset: () => void;
 }
 
@@ -65,6 +73,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   streaming: null,
   roomStatus: 'idle',
   turnProgress: { current: 0, total: 0 },
+  tokenTotals: { input: 0, output: 0 },
 
   loadHistory: async (roomId: string) => {
     const res = await fetch(`/api/rooms/${roomId}/messages`);
@@ -85,7 +94,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       createdAt: typeof m.createdAt === 'string' ? m.createdAt : new Date(m.createdAt).toISOString(),
     }));
     const ids = new Set(mapped.map((m) => m.id));
-    set({ messages: mapped, messageIds: ids });
+    const tokenTotals = mapped.reduce(
+      (acc, m) => ({
+        input: acc.input + (m.inputTokens ?? 0),
+        output: acc.output + (m.outputTokens ?? 0),
+      }),
+      { input: 0, output: 0 },
+    );
+    set({ messages: mapped, messageIds: ids, tokenTotals });
   },
 
   startTurn: (data) => {
@@ -200,6 +216,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ roomStatus: status, ...(status === 'idle' ? { streaming: null } : {}) });
   },
 
+  updateTokenTotals: (inputTokens, outputTokens) => {
+    set((state) => ({
+      tokenTotals: {
+        input: state.tokenTotals.input + inputTokens,
+        output: state.tokenTotals.output + outputTokens,
+      },
+    }));
+  },
+
   reset: () => {
     set({
       messages: [],
@@ -207,6 +232,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       streaming: null,
       roomStatus: 'idle',
       turnProgress: { current: 0, total: 0 },
+      tokenTotals: { input: 0, output: 0 },
     });
   },
 }));
