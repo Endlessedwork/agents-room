@@ -19,6 +19,23 @@ export function ChatHeader({ room }: ChatHeaderProps) {
   const setRoomStatus = useChatStore((s) => s.setRoomStatus);
   const tokenTotals = useChatStore((s) => s.tokenTotals);
   const hasMessages = useChatStore((s) => s.messages.length > 0);
+  const summaryLoading = useChatStore((s) => s.summaryLoading);
+
+  const handleSummarize = async () => {
+    const store = useChatStore.getState();
+    store.setSummaryLoading(true);
+    try {
+      const res = await fetch(`/api/rooms/${room.id}/summary`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.summary) {
+        store.setSummary(data.summary);
+      } else {
+        store.setSummaryLoading(false);
+      }
+    } catch {
+      store.setSummaryLoading(false);
+    }
+  };
 
   const handleStart = () => {
     setRoomStatus('running');
@@ -70,6 +87,16 @@ export function ChatHeader({ room }: ChatHeaderProps) {
 
       {/* Right: controls */}
       <div className="flex items-center gap-2">
+        {hasMessages && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSummarize}
+            disabled={summaryLoading}
+          >
+            {summaryLoading ? 'Generating...' : 'Summarize'}
+          </Button>
+        )}
         {roomStatus === 'idle' && (
           <Button variant="default" size="sm" onClick={handleStart}>
             Start

@@ -10,6 +10,8 @@ import type { ChatMessage } from '@/stores/chatStore';
 export function MessageFeed() {
   const messages = useChatStore((s) => s.messages);
   const streaming = useChatStore((s) => s.streaming);
+  const summary = useChatStore((s) => s.summary);
+  const summaryLoading = useChatStore((s) => s.summaryLoading);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -74,6 +76,21 @@ export function MessageFeed() {
         {/* Streaming message: text has begun */}
         {streamingMessage && (
           <MessageBubble message={streamingMessage} isStreaming={true} />
+        )}
+
+        {/* Summary loading banner */}
+        {summaryLoading && (
+          <div className="w-full text-center py-3 px-4 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-sm rounded my-2 animate-pulse">
+            Generating summary...
+          </div>
+        )}
+
+        {/* Summary result banner */}
+        {summary && !summaryLoading && (
+          <div className="w-full py-3 px-4 bg-blue-50 dark:bg-blue-950/30 text-sm rounded my-2 border border-blue-200 dark:border-blue-800">
+            <div className="font-semibold text-blue-700 dark:text-blue-300 mb-1">Summary</div>
+            <div className="text-foreground whitespace-pre-wrap">{summary}</div>
+          </div>
         )}
 
         <div ref={bottomRef} />
