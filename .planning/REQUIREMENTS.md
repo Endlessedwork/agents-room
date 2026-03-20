@@ -9,18 +9,18 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Room Management
 
-- [x] **ROOM-01**: User can create a new room with a name and optional topic description
-- [x] **ROOM-02**: User can view a list of all rooms with their status
-- [x] **ROOM-03**: User can delete a room and its conversation history
-- [x] **ROOM-04**: User can open a room and see its full conversation history
+- [ ] **ROOM-01**: User can create a new room with a name and optional topic description
+- [ ] **ROOM-02**: User can view a list of all rooms with their status
+- [ ] **ROOM-03**: User can delete a room and its conversation history
+- [ ] **ROOM-04**: User can open a room and see its full conversation history
 
 ### Agent Configuration
 
-- [x] **AGNT-01**: User can create an agent with a name, persona/role, and system prompt
-- [x] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
-- [x] **AGNT-03**: User can add/remove agents from a room
-- [x] **AGNT-04**: User can set a configurable turn limit per conversation session
-- [x] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
+- [ ] **AGNT-01**: User can create an agent with a name, persona/role, and system prompt
+- [ ] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
+- [ ] **AGNT-03**: User can add/remove agents from a room
+- [ ] **AGNT-04**: User can set a configurable turn limit per conversation session
+- [ ] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
 
 ### Conversation Engine
 
@@ -76,15 +76,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ROOM-01 | Phase 1 | Complete |
-| ROOM-02 | Phase 1 | Complete |
-| ROOM-03 | Phase 1 | Complete |
-| ROOM-04 | Phase 1 | Complete |
-| AGNT-01 | Phase 1 | Complete |
-| AGNT-02 | Phase 1 | Complete |
-| AGNT-03 | Phase 1 | Complete |
-| AGNT-04 | Phase 2 | Complete |
-| AGNT-05 | Phase 2 | Complete |
+| ROOM-01 | Phase 5 | Pending |
+| ROOM-02 | Phase 5 | Pending |
+| ROOM-03 | Phase 5 | Pending |
+| ROOM-04 | Phase 5 | Pending |
+| AGNT-01 | Phase 5 | Pending |
+| AGNT-02 | Phase 5 | Pending |
+| AGNT-03 | Phase 5 | Pending |
+| AGNT-04 | Phase 6 | Pending |
+| AGNT-05 | Phase 6 | Pending |
 | CONV-01 | Phase 2 | Complete |
 | CONV-02 | Phase 2 | Complete |
 | CONV-03 | Phase 2 | Complete |
@@ -101,8 +101,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 **Coverage:**
 - v1 requirements: 21 total
 - Mapped to phases: 21
+- Satisfied: 12/21
+- Pending (gap closure): 9/21
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after roadmap creation*
+*Last updated: 2026-03-20 after gap closure phase creation*
