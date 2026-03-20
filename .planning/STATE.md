@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-real-time-ui 03-01-PLAN.md
-last_updated: "2026-03-20T05:06:28.993Z"
+stopped_at: Completed 03-real-time-ui 03-02-PLAN.md
+last_updated: "2026-03-20T05:15:50.910Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -54,6 +54,7 @@ Plan: 2 of 3
 | Phase 02-conversation-engine P02 | 5 | 1 tasks | 2 files |
 | Phase 02-conversation-engine P03 | 10 | 2 tasks | 7 files |
 | Phase 03-real-time-ui P01 | 6 | 2 tasks | 8 files |
+| Phase 03-real-time-ui P02 | 5 | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - [Phase 02-conversation-engine]: start/resume endpoints fire-and-forget at HTTP level (return 200 immediately); pause/stop await synchronous state change
 - [Phase 03-real-time-ui]: SSE registry uses Set<Controller> per roomId for multi-client fan-out with silent cleanup of dead controllers
 - [Phase 03-real-time-ui]: ConversationManager emits 6 SSE event types (turn:start, token, turn:end, turn:cancel, status, system) + user-message from messages endpoint
+- [Phase 03-real-time-ui]: chatStore uses messageIds Set<string> for deduplication — both SSE user-message and POST response call addUserMessage, dedup prevents doubles
+- [Phase 03-real-time-ui]: ThinkingBubble shown when streaming.text is empty, transitions to streaming MessageBubble when first token arrives — no flicker
+- [Phase 03-real-time-ui]: ChatHeader uses optimistic setRoomStatus before fire-and-forget fetch — UI responds instantly, SSE status event confirms actual state
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T05:06:28.990Z
-Stopped at: Completed 03-real-time-ui 03-01-PLAN.md
+Last session: 2026-03-20T05:15:50.907Z
+Stopped at: Completed 03-real-time-ui 03-02-PLAN.md
 Resume file: None
