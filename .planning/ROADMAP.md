@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Room and agent management with LLM gateway infrastructure (completed 2026-03-19)
 - [x] **Phase 2: Conversation Engine** - Autonomous multi-agent conversation with turn control and context management (completed 2026-03-19)
 - [ ] **Phase 3: Real-Time UI** - Live token streaming, agent identity display, and user participation
-- [ ] **Phase 4: Insights** - Token usage visibility, on-demand summaries, and conversation export
+- [x] **Phase 4: Insights** - Token usage visibility, on-demand summaries, and conversation export (completed 2026-03-20)
 
 ## Phase Details
 
@@ -95,4 +95,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation | 4/4 | Complete   | 2026-03-19 |
 | 2. Conversation Engine | 3/3 | Complete   | 2026-03-19 |
 | 3. Real-Time UI | 1/3 | In Progress|  |
-| 4. Insights | 2/3 | In Progress|  |
+| 4. Insights | 3/3 | Complete   | 2026-03-20 |
