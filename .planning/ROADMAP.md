@@ -71,19 +71,19 @@ Plans:
 - [ ] 03-03-PLAN.md — Human verification: end-to-end live streaming chat experience
 
 ### Phase 4: Insights
-**Goal**: Users can see what conversations cost, request summaries on demand, and export conversation content for use outside the tool
+**Goal**: Users can see token usage per room, generate on-demand conversation summaries, and export conversations as Markdown or JSON
 **Depends on**: Phase 3
 **Requirements**: INSI-01, INSI-02, INSI-03
 **Success Criteria** (what must be TRUE):
   1. Token usage and estimated API cost for a room are visible in the UI and update after each completed turn
   2. User can click a button to generate an LLM-powered summary of the current conversation and read it inline
   3. User can download the current conversation as a Markdown file and as a JSON file
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Token usage display and cost estimation per room
-- [ ] 04-02: On-demand conversation summary (LLM call with full transcript)
-- [ ] 04-03: Conversation export to Markdown and JSON
+- [ ] 04-01-PLAN.md — Token usage display in chat header with real-time SSE updates
+- [ ] 04-02-PLAN.md — On-demand LLM-powered conversation summary with inline banner
+- [ ] 04-03-PLAN.md — Conversation export to Markdown and JSON with metadata
 
 ## Progress
 
