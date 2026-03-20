@@ -1,6 +1,6 @@
 'use client';
 
-import { useChatStore } from '@/stores/chatStore';
+import { useChatStore, formatTokenCount } from '@/stores/chatStore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -17,6 +17,8 @@ export function ChatHeader({ room }: ChatHeaderProps) {
   const roomStatus = useChatStore((s) => s.roomStatus);
   const turnProgress = useChatStore((s) => s.turnProgress);
   const setRoomStatus = useChatStore((s) => s.setRoomStatus);
+  const tokenTotals = useChatStore((s) => s.tokenTotals);
+  const hasMessages = useChatStore((s) => s.messages.length > 0);
 
   const handleStart = () => {
     setRoomStatus('running');
@@ -57,6 +59,11 @@ export function ChatHeader({ room }: ChatHeaderProps) {
         {showTurnProgress && (
           <span className="text-sm text-muted-foreground">
             Turn {turnProgress.current} of {turnProgress.total}
+          </span>
+        )}
+        {hasMessages && (
+          <span className="text-sm text-muted-foreground">
+            Tokens: {formatTokenCount(tokenTotals.input)} in / {formatTokenCount(tokenTotals.output)} out
           </span>
         )}
       </div>

@@ -10,6 +10,7 @@ export function useRoomStream(roomId: string) {
     addSystemMessage,
     addUserMessage,
     setRoomStatus,
+    updateTokenTotals,
   } = useChatStore();
 
   useEffect(() => {
@@ -23,7 +24,11 @@ export function useRoomStream(roomId: string) {
       appendToken(agentId, text);
     });
     es.addEventListener('turn:end', (e) => {
-      completeTurn(JSON.parse(e.data));
+      const data = JSON.parse(e.data);
+      completeTurn(data);
+      if (data.inputTokens != null && data.outputTokens != null) {
+        updateTokenTotals(data.inputTokens, data.outputTokens);
+      }
     });
     es.addEventListener('turn:cancel', () => {
       cancelTurn();
@@ -39,5 +44,5 @@ export function useRoomStream(roomId: string) {
     });
 
     return () => es.close();
-  }, [roomId, startTurn, appendToken, completeTurn, cancelTurn, addSystemMessage, addUserMessage, setRoomStatus]);
+  }, [roomId, startTurn, appendToken, completeTurn, cancelTurn, addSystemMessage, addUserMessage, setRoomStatus, updateTokenTotals]);
 }
