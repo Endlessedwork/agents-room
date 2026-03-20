@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Conversation Quality & Polish
 status: unknown
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-21T01:55:00Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-20T20:45:50.320Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -39,6 +39,8 @@ Plan: 2 of 2 (next to execute)
 - Total plans completed: 3 (v1.1)
 - Timeline: Starting
 
+| Phase 08-cost-estimation P02 | 20min | 4 tasks | 4 files |
+
 ## Accumulated Context
 
 ### Decisions
@@ -54,6 +56,9 @@ Key v1.1 constraints from research:
 - [Phase 07-conversation-quality]: Inject anti-sycophancy from turnCount >= 1 (round 2 onward); topic-lock every 5 turns only when room.topic exists; default turnCount=0 for backward compat
 - [Phase 07-02]: ConversationManager passes turnCount to buildContext — injection is now active end-to-end in production; first turn always unmodified (turnCount=0)
 - [Phase 08-01]: CostResult discriminated union prevents sentinel misuse as numbers; ollama provider check precedes ModelInfoMap lookup; toFixed(4) for <$0.01, toFixed(2) for ≥$0.01
+- [Phase 08-02]: Provider added to turn:start SSE payload — zero extra DB round-trips per turn
+- [Phase 08-02]: estimatedCostState lives in chatStore alongside tokenTotals — single source of truth for all per-room financial metrics
+- [Phase 08-02]: loadHistory rehydrates cost from roomAgent.provider already returned by messages API — no schema changes needed
 
 ### Pending Todos
 
@@ -65,6 +70,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T01:55:00Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-20T20:45:50.317Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
