@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Conversation Quality & Polish
-status: unknown
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-20T18:13:52.951Z"
+status: complete
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-20T18:16:30Z"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 07 (conversation-quality) — EXECUTING
-Plan: 2 of 2
+Phase: 07 (conversation-quality) — COMPLETE
+Plan: 2 of 2 (all done)
 
 ## Performance Metrics
 
@@ -33,8 +33,9 @@ Plan: 2 of 2
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 07-conversation-quality | 01 | 2min | 2 | 2 |
+| 07-conversation-quality | 02 | 2min | 2 | 2 |
 
-- Total plans completed: 1 (v1.1)
+- Total plans completed: 2 (v1.1)
 - Timeline: Starting
 
 ## Accumulated Context
@@ -50,6 +51,7 @@ Key v1.1 constraints from research:
 - Parallel first round: buffer-then-emit (not streaming parallel); needs `turnNumber` column migration
 - Phase 7 before Phase 9: quality prompts produce the explicit agreement language that convergence detector relies on
 - [Phase 07-conversation-quality]: Inject anti-sycophancy from turnCount >= 1 (round 2 onward); topic-lock every 5 turns only when room.topic exists; default turnCount=0 for backward compat
+- [Phase 07-02]: ConversationManager passes turnCount to buildContext — injection is now active end-to-end in production; first turn always unmodified (turnCount=0)
 
 ### Pending Todos
 
@@ -61,6 +63,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T18:13:52.948Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-20T18:16:30Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

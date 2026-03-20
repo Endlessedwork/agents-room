@@ -25,7 +25,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Improve conversation quality through better prompting, add cost visibility, enable smarter conversation flow (parallel first round + convergence detection), and eliminate v1.0 tech debt.
 
-- [ ] **Phase 7: Conversation Quality** — Anti-sycophancy prompts and topic-lock injection so agents maintain distinct stances
+- [x] **Phase 7: Conversation Quality** — Anti-sycophancy prompts and topic-lock injection so agents maintain distinct stances (completed 2026-03-20)
 - [ ] **Phase 8: Cost Estimation** — Real-time estimated cost display per room using static model pricing
 - [ ] **Phase 9: Convergence Detection** — Auto-pause when agents reach genuine consensus, with system message explaining why
 - [ ] **Phase 10: Parallel First Round** — All agents respond independently in round 1 before seeing each other
@@ -42,7 +42,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   2. Before round 2 and every subsequent round, a system-injected anti-agreement instruction appears in agent context (visible in conversation logs)
   3. Every N turns, agents receive a topic-lock reminder that redirects drift back to the original room topic
   4. A conversation on a debatable topic runs 10+ turns without agents collapsing to uniform agreement
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 07-01-PLAN.md — Anti-sycophancy and topic-lock injection logic in ContextService
 - [ ] 07-02-PLAN.md — Thread turnCount from ConversationManager to buildContext
@@ -100,7 +100,7 @@ Plans:
 | 4. Insights | v1.0 | 3/3 | Complete | 2026-03-20 |
 | 5. Foundation Verification | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 6. Room Configuration UI | v1.0 | 2/2 | Complete | 2026-03-20 |
-| 7. Conversation Quality | 1/2 | In Progress|  | - |
+| 7. Conversation Quality | 2/2 | Complete   | 2026-03-20 | - |
 | 8. Cost Estimation | v1.1 | 0/TBD | Not started | - |
 | 9. Convergence Detection | v1.1 | 0/TBD | Not started | - |
 | 10. Parallel First Round | v1.1 | 0/TBD | Not started | - |
