@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useChatStore, formatTokenCount } from '@/stores/chatStore';
+import { formatCost } from '@/lib/pricing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EditRoomDialog } from './EditRoomDialog';
@@ -17,11 +18,22 @@ interface ChatHeaderProps {
   };
 }
 
+function formatEstimatedCostDisplay(state: {
+  dollars: number;
+  hasUnknown: boolean;
+  hasLocal: boolean;
+}): string {
+  if (state.hasUnknown) return '\u2014';
+  if (state.hasLocal && state.dollars === 0) return 'local';
+  return formatCost({ type: 'dollars', value: state.dollars });
+}
+
 export function ChatHeader({ room }: ChatHeaderProps) {
   const roomStatus = useChatStore((s) => s.roomStatus);
   const turnProgress = useChatStore((s) => s.turnProgress);
   const setRoomStatus = useChatStore((s) => s.setRoomStatus);
   const tokenTotals = useChatStore((s) => s.tokenTotals);
+  const estimatedCostState = useChatStore((s) => s.estimatedCostState);
   const hasMessages = useChatStore((s) => s.messages.length > 0);
   const summaryLoading = useChatStore((s) => s.summaryLoading);
   const summary = useChatStore((s) => s.summary);
@@ -119,6 +131,8 @@ export function ChatHeader({ room }: ChatHeaderProps) {
         {hasMessages && (
           <span className="text-sm text-muted-foreground">
             Tokens: {formatTokenCount(tokenTotals.input)} in / {formatTokenCount(tokenTotals.output)} out
+            {' \u00b7 '}
+            {formatEstimatedCostDisplay(estimatedCostState)}
           </span>
         )}
       </div>
