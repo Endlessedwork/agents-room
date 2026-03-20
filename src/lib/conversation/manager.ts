@@ -95,6 +95,7 @@ export class ConversationManager {
             avatarIcon: agent.avatarIcon,
             promptRole: agent.promptRole,
             model: agent.model,
+            provider: agent.provider,
             turnNumber: turnCount + 1,
             totalTurns: turnLimit,
           });

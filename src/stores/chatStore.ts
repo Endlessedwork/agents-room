@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
+import { calculateCost } from '@/lib/pricing';
 
 export function formatTokenCount(n: number): string {
   if (n === 0) return '0';
@@ -17,6 +18,7 @@ export interface ChatMessage {
   avatarIcon: string | null;
   promptRole: string | null;
   model: string | null;
+  provider: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   createdAt: string; // ISO string
@@ -29,6 +31,7 @@ export interface StreamingState {
   avatarIcon: string;
   promptRole: string;
   model: string;
+  provider: string;
   text: string;
 }
 
@@ -39,6 +42,7 @@ interface ChatStore {
   roomStatus: 'idle' | 'running' | 'paused';
   turnProgress: { current: number; total: number };
   tokenTotals: { input: number; output: number };
+  estimatedCostState: { dollars: number; hasUnknown: boolean; hasLocal: boolean };
   summary: string | null;
   summaryLoading: boolean;
 
@@ -51,6 +55,7 @@ interface ChatStore {
     avatarIcon: string;
     promptRole: string;
     model: string;
+    provider: string;
     turnNumber: number;
     totalTurns: number;
   }) => void;
@@ -79,6 +84,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   roomStatus: 'idle',
   turnProgress: { current: 0, total: 0 },
   tokenTotals: { input: 0, output: 0 },
+  estimatedCostState: { dollars: 0, hasUnknown: false, hasLocal: false },
   summary: null,
   summaryLoading: false,
 
@@ -96,6 +102,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       avatarIcon: m.roomAgent?.avatarIcon ?? null,
       promptRole: m.roomAgent?.promptRole ?? null,
       model: m.model,
+      provider: m.roomAgent?.provider ?? null,
       inputTokens: m.inputTokens,
       outputTokens: m.outputTokens,
       createdAt: typeof m.createdAt === 'string' ? m.createdAt : new Date(m.createdAt).toISOString(),
@@ -108,7 +115,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }),
       { input: 0, output: 0 },
     );
-    set({ messages: mapped, messageIds: ids, tokenTotals });
+    const estimatedCostState = mapped.reduce(
+      (acc, m) => {
+        if (m.role !== 'agent' || m.inputTokens == null || m.outputTokens == null) return acc;
+        const result = calculateCost(m.provider ?? '', m.model ?? '', m.inputTokens, m.outputTokens);
+        if (result.type === 'dollars') return { ...acc, dollars: acc.dollars + result.value };
+        if (result.display === 'local') return { ...acc, hasLocal: true };
+        return { ...acc, hasUnknown: true };
+      },
+      { dollars: 0, hasUnknown: false, hasLocal: false },
+    );
+    set({ messages: mapped, messageIds: ids, tokenTotals, estimatedCostState });
   },
 
   startTurn: (data) => {
@@ -120,6 +137,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         avatarIcon: data.avatarIcon,
         promptRole: data.promptRole,
         model: data.model,
+        provider: data.provider,
         text: '',
       },
       turnProgress: { current: data.turnNumber, total: data.totalTurns },
@@ -143,6 +161,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       set({ streaming: null });
       return;
     }
+
+    const costResult = calculateCost(
+      state.streaming.provider,
+      state.streaming.model,
+      data.inputTokens ?? 0,
+      data.outputTokens ?? 0,
+    );
+    const prev = state.estimatedCostState;
+    const newCostState =
+      costResult.type === 'dollars'
+        ? { dollars: prev.dollars + costResult.value, hasUnknown: prev.hasUnknown, hasLocal: prev.hasLocal }
+        : costResult.display === 'local'
+          ? { dollars: prev.dollars, hasUnknown: prev.hasUnknown, hasLocal: true }
+          : { dollars: prev.dollars, hasUnknown: true, hasLocal: prev.hasLocal };
+
     const completed: ChatMessage = {
       id: data.messageId,
       role: 'agent',
@@ -153,6 +186,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       avatarIcon: state.streaming.avatarIcon,
       promptRole: state.streaming.promptRole,
       model: state.streaming.model,
+      provider: state.streaming.provider,
       inputTokens: data.inputTokens,
       outputTokens: data.outputTokens,
       createdAt: new Date().toISOString(),
@@ -163,6 +197,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       messages: [...state.messages, completed],
       messageIds: newIds,
       streaming: null,
+      estimatedCostState: newCostState,
     });
   },
 
@@ -184,6 +219,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           avatarIcon: null,
           promptRole: null,
           model: null,
+          provider: null,
           inputTokens: null,
           outputTokens: null,
           createdAt: new Date().toISOString(),
@@ -210,6 +246,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           avatarIcon: null,
           promptRole: null,
           model: null,
+          provider: null,
           inputTokens: null,
           outputTokens: null,
           createdAt: msg.createdAt,
@@ -246,6 +283,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       roomStatus: 'idle',
       turnProgress: { current: 0, total: 0 },
       tokenTotals: { input: 0, output: 0 },
+      estimatedCostState: { dollars: 0, hasUnknown: false, hasLocal: false },
       summary: null,
       summaryLoading: false,
     });

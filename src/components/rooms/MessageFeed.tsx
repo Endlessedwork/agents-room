@@ -46,6 +46,7 @@ export function MessageFeed() {
           avatarIcon: streaming.avatarIcon,
           promptRole: streaming.promptRole,
           model: streaming.model,
+          provider: streaming.provider,
           inputTokens: null,
           outputTokens: null,
           createdAt: new Date().toISOString(),
