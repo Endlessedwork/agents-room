@@ -416,3 +416,129 @@ describe('ConversationManager', () => {
     expect(value).toBe(10);
   });
 });
+
+describe('ConversationManager convergence auto-pause', () => {
+  // These tests require TWO agents in the room for cross-agent convergence detection
+  let agentId2: string;
+
+  beforeEach(async () => {
+    agentId2 = nanoid();
+
+    // Insert second room agent
+    await db.insert(roomAgents).values({
+      id: agentId2,
+      roomId,
+      name: 'Agent B',
+      avatarColor: '#ffffff',
+      avatarIcon: 'bot',
+      promptRole: 'You are a second assistant.',
+      provider: 'openai',
+      model: 'gpt-4o',
+      temperature: 0.7,
+      position: 1,
+    });
+
+    // Insert provider key for openai
+    await db.insert(providerKeys).values({
+      provider: 'openai',
+      apiKey: 'test-openai-key',
+      status: 'configured',
+    });
+  });
+
+  it('auto-pauses on convergence detection', async () => {
+    // Set high turn limit so convergence fires before turn limit.
+    // Spy on detectConvergence to return true once turnCount reaches 5 (6th turn).
+    // This isolates the manager wiring test from the convergence algorithm itself
+    // (which is already tested in context-service.test.ts).
+    await db.update(rooms).set({ turnLimit: 20 }).where(eq(rooms.id, roomId));
+
+    const detectConvergenceSpy = vi.spyOn(ContextService, 'detectConvergence').mockImplementation(
+      async (_db, _roomId, turnCount) => {
+        return turnCount >= 5;
+      },
+    );
+
+    // Also suppress repetition detection so it doesn't interfere
+    vi.spyOn(ContextService, 'detectRepetition').mockResolvedValue(false);
+
+    mockStreamLLM.mockImplementation(() => makeMockStream());
+
+    await ConversationManager.start(roomId, db);
+
+    // Wait for auto-pause triggered by convergence (fires on 6th turn when turnCount=5)
+    await waitForStatus(db, roomId, 'paused', 10000);
+
+    const room = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });
+    expect(room?.status).toBe('paused');
+
+    // Verify system message persisted
+    const allMessages = await db.query.messages.findMany({
+      where: eq(messages.roomId, roomId),
+    });
+    const systemMsg = allMessages.find((m) => m.role === 'system' && m.content.includes('agents reached consensus'));
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg?.role).toBe('system');
+    expect(systemMsg?.roomAgentId).toBeNull();
+
+    detectConvergenceSpy.mockRestore();
+  });
+
+  it('does not fire convergence before turn 6', async () => {
+    // Set turnLimit=5: loop runs for 5 turns (turnCount 0,1,2,3,4).
+    // detectConvergence guard: turnCount < 5 → always returns false for all 5 turns.
+    // Even if we spy it to always return true, the guard prevents it — but here we
+    // test the actual guard by using turnLimit=5 so the loop ends before turn 6.
+    await db.update(rooms).set({ turnLimit: 5 }).where(eq(rooms.id, roomId));
+
+    // Use the real detectConvergence but spy on detectRepetition to prevent it firing
+    vi.spyOn(ContextService, 'detectRepetition').mockResolvedValue(false);
+
+    // Use the real detectConvergence — with turnLimit=5, turnCount goes 0..4, guard blocks all
+    mockStreamLLM.mockImplementation(() => makeMockStream());
+
+    await ConversationManager.start(roomId, db);
+
+    // Loop should complete normally (idle), NOT pause on convergence
+    await waitForStatus(db, roomId, 'idle', 10000);
+
+    const room = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });
+    expect(room?.status).toBe('idle');
+
+    // No consensus system message should exist
+    const allMessages = await db.query.messages.findMany({
+      where: eq(messages.roomId, roomId),
+    });
+    const consensusMsg = allMessages.find((m) => m.content.includes('consensus'));
+    expect(consensusMsg).toBeUndefined();
+  });
+
+  it('system message content is exactly [Auto-paused: agents reached consensus]', async () => {
+    // Same setup as Test 1 — spy to trigger convergence at turnCount=5 (6th turn)
+    await db.update(rooms).set({ turnLimit: 20 }).where(eq(rooms.id, roomId));
+
+    const detectConvergenceSpy = vi.spyOn(ContextService, 'detectConvergence').mockImplementation(
+      async (_db, _roomId, turnCount) => {
+        return turnCount >= 5;
+      },
+    );
+
+    vi.spyOn(ContextService, 'detectRepetition').mockResolvedValue(false);
+
+    mockStreamLLM.mockImplementation(() => makeMockStream());
+
+    await ConversationManager.start(roomId, db);
+    await waitForStatus(db, roomId, 'paused', 10000);
+
+    const allMessages = await db.query.messages.findMany({
+      where: eq(messages.roomId, roomId),
+    });
+    const systemMsg = allMessages.find((m) => m.role === 'system' && m.content.includes('consensus'));
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg?.content).toBe('[Auto-paused: agents reached consensus]');
+    expect(systemMsg?.role).toBe('system');
+    expect(systemMsg?.roomAgentId).toBeNull();
+
+    detectConvergenceSpy.mockRestore();
+  });
+});
