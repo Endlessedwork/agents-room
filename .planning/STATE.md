@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-20T07:46:40.311Z"
+stopped_at: Completed 04-insights-04-01-PLAN.md
+last_updated: "2026-03-20T11:15:22.426Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Agents must have meaningful conversations that produce genuinely useful insights — the room is only valuable if agent collaboration yields better outcomes than talking to one agent alone
-**Current focus:** Phase 03 — real-time-ui
+**Current focus:** Phase 04 — insights
 
 ## Current Position
 
-Phase: 03 (real-time-ui) — EXECUTING
+Phase: 04 (insights) — EXECUTING
 Plan: 2 of 3
 
 ## Performance Metrics
@@ -55,6 +55,7 @@ Plan: 2 of 3
 | Phase 02-conversation-engine P03 | 10 | 2 tasks | 7 files |
 | Phase 03-real-time-ui P01 | 6 | 2 tasks | 8 files |
 | Phase 03-real-time-ui P02 | 5 | 3 tasks | 11 files |
+| Phase 04-insights P01 | 9 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting current work:
 - [Phase 03-real-time-ui]: chatStore uses messageIds Set<string> for deduplication — both SSE user-message and POST response call addUserMessage, dedup prevents doubles
 - [Phase 03-real-time-ui]: ThinkingBubble shown when streaming.text is empty, transitions to streaming MessageBubble when first token arrives — no flicker
 - [Phase 03-real-time-ui]: ChatHeader uses optimistic setRoomStatus before fire-and-forget fetch — UI responds instantly, SSE status event confirms actual state
+- [Phase 04-insights]: formatTokenCount exported as pure function outside store — reusable without store access
+- [Phase 04-insights]: loadHistory computes tokenTotals from persisted messages so history loads show correct totals
+- [Phase 04-insights]: turn:end handler parses SSE data once, passes to both completeTurn and updateTokenTotals
 
 ### Pending Todos
 
@@ -99,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T07:46:40.308Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-insights/04-CONTEXT.md
+Last session: 2026-03-20T11:15:22.422Z
+Stopped at: Completed 04-insights-04-01-PLAN.md
+Resume file: None

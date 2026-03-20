@@ -39,7 +39,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Insights & Export
 
-- [ ] **INSI-01**: User can view token usage and estimated cost per room
+- [x] **INSI-01**: User can view token usage and estimated cost per room
 - [ ] **INSI-02**: User can generate an LLM-powered summary of a conversation on demand
 - [ ] **INSI-03**: User can export a conversation as Markdown or JSON
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RTUI-02 | Phase 3 | Complete |
 | RTUI-03 | Phase 3 | Complete |
 | RTUI-04 | Phase 3 | Complete |
-| INSI-01 | Phase 4 | Pending |
+| INSI-01 | Phase 4 | Complete |
 | INSI-02 | Phase 4 | Pending |
 | INSI-03 | Phase 4 | Pending |
 
