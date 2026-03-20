@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { createTestDb } from '../setup';
-import { createRoomSchema } from '@/lib/validations';
+import { createRoomSchema, updateRoomSchema } from '@/lib/validations';
 import { rooms } from '@/db/schema';
 
 // These tests validate the Room API by exercising validation schemas and
@@ -47,6 +47,73 @@ describe('Room API — validation and schema tests', () => {
     });
   });
 
+  describe('createRoomSchema — turnLimit and speakerStrategy', () => {
+    it('accepts turnLimit within range (5-100)', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room', turnLimit: 30 });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.turnLimit).toBe(30);
+    });
+
+    it('defaults turnLimit to 20 when omitted', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.turnLimit).toBe(20);
+    });
+
+    it('rejects turnLimit below 5', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room', turnLimit: 4 });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects turnLimit above 100', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room', turnLimit: 101 });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts speakerStrategy round-robin', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room', speakerStrategy: 'round-robin' });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts speakerStrategy llm-selected', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room', speakerStrategy: 'llm-selected' });
+      expect(result.success).toBe(true);
+    });
+
+    it('defaults speakerStrategy to round-robin when omitted', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.speakerStrategy).toBe('round-robin');
+    });
+
+    it('rejects invalid speakerStrategy', () => {
+      const result = createRoomSchema.safeParse({ name: 'Room', speakerStrategy: 'random' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('updateRoomSchema', () => {
+    it('accepts partial update with only turnLimit', () => {
+      const result = updateRoomSchema.safeParse({ turnLimit: 50 });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts partial update with only speakerStrategy', () => {
+      const result = updateRoomSchema.safeParse({ speakerStrategy: 'llm-selected' });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts empty object', () => {
+      const result = updateRoomSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects invalid turnLimit', () => {
+      const result = updateRoomSchema.safeParse({ turnLimit: 200 });
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('POST /api/rooms — database layer', () => {
     it('inserts a room with name+topic and can be queried back', async () => {
       const id = nanoid();
@@ -69,6 +136,31 @@ describe('Room API — validation and schema tests', () => {
         where: (r, { eq }) => eq(r.id, id),
       });
       expect(found!.status).toBe('idle');
+    });
+
+    it('inserts room with explicit turnLimit and speakerStrategy', async () => {
+      const id = nanoid();
+      await db.insert(rooms).values({
+        id,
+        name: 'Custom Room',
+        turnLimit: 50,
+        speakerStrategy: 'llm-selected',
+      });
+      const found = await db.query.rooms.findFirst({
+        where: (r, { eq }) => eq(r.id, id),
+      });
+      expect(found!.turnLimit).toBe(50);
+      expect(found!.speakerStrategy).toBe('llm-selected');
+    });
+
+    it('room defaults to turnLimit=20 and speakerStrategy=round-robin', async () => {
+      const id = nanoid();
+      await db.insert(rooms).values({ id, name: 'Default Room' });
+      const found = await db.query.rooms.findFirst({
+        where: (r, { eq }) => eq(r.id, id),
+      });
+      expect(found!.turnLimit).toBe(20);
+      expect(found!.speakerStrategy).toBe('round-robin');
     });
   });
 

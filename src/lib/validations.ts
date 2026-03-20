@@ -3,6 +3,15 @@ import { z } from 'zod';
 export const createRoomSchema = z.object({
   name: z.string().min(1).max(60),
   topic: z.string().max(280).optional(),
+  turnLimit: z.number().int().min(5).max(100).default(20),
+  speakerStrategy: z.enum(['round-robin', 'llm-selected']).default('round-robin'),
+});
+
+export const updateRoomSchema = z.object({
+  name: z.string().min(1).max(60).optional(),
+  topic: z.string().max(280).optional(),
+  turnLimit: z.number().int().min(5).max(100).optional(),
+  speakerStrategy: z.enum(['round-robin', 'llm-selected']).optional(),
 });
 
 export const createAgentSchema = z.object({

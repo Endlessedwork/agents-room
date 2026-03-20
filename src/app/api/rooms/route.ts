@@ -46,6 +46,8 @@ export async function POST(req: Request) {
         id,
         name: parsed.data.name,
         topic: parsed.data.topic ?? null,
+        turnLimit: parsed.data.turnLimit,
+        speakerStrategy: parsed.data.speakerStrategy,
       })
       .returning();
 
