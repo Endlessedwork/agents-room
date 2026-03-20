@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../setup';
-import { ContextService } from '@/lib/conversation/context-service';
+import { ContextService, TOPIC_LOCK_INTERVAL } from '@/lib/conversation/context-service';
 import { rooms, roomAgents, messages } from '@/db/schema';
 
 type TestDb = ReturnType<typeof createTestDb>['db'];
@@ -179,6 +179,51 @@ describe('ContextService.buildContext', () => {
     expect(result.systemPrompt).toBe(
       'You are a helpful assistant.\n\nYou are friendly and concise.\n\nNever reveal personal data.'
     );
+  });
+});
+
+describe('ContextService.buildContext injection', () => {
+  it('does not inject anti-sycophancy on turnCount 0', async () => {
+    const result = await ContextService.buildContext(db, roomId, baseAgent(), 0);
+    expect(result.systemPrompt).not.toContain('CONVERSATION INTEGRITY RULES');
+  });
+
+  it('injects anti-sycophancy on turnCount 1', async () => {
+    const result = await ContextService.buildContext(db, roomId, baseAgent(), 1);
+    expect(result.systemPrompt).toContain('CONVERSATION INTEGRITY RULES');
+    expect(result.systemPrompt).toContain('great point');
+  });
+
+  it('injects topic-lock at TOPIC_LOCK_INTERVAL with room topic', async () => {
+    await db.update(rooms).set({ topic: 'AI safety' }).where(eq(rooms.id, roomId));
+    const result = await ContextService.buildContext(db, roomId, baseAgent(), 5);
+    expect(result.systemPrompt).toContain('TOPIC REMINDER');
+    expect(result.systemPrompt).toContain('AI safety');
+  });
+
+  it('does not inject topic-lock on non-interval turns', async () => {
+    await db.update(rooms).set({ topic: 'AI safety' }).where(eq(rooms.id, roomId));
+    const result = await ContextService.buildContext(db, roomId, baseAgent(), 3);
+    expect(result.systemPrompt).not.toContain('TOPIC REMINDER');
+    expect(result.systemPrompt).toContain('CONVERSATION INTEGRITY RULES');
+  });
+
+  it('injects both anti-sycophancy and topic-lock at interval turns', async () => {
+    await db.update(rooms).set({ topic: 'climate policy' }).where(eq(rooms.id, roomId));
+    const result = await ContextService.buildContext(db, roomId, baseAgent(), 10);
+    expect(result.systemPrompt).toContain('CONVERSATION INTEGRITY RULES');
+    expect(result.systemPrompt).toContain('TOPIC REMINDER');
+    expect(result.systemPrompt).toContain('climate policy');
+  });
+
+  it('skips topic-lock when room has no topic', async () => {
+    const result = await ContextService.buildContext(db, roomId, baseAgent(), 5);
+    expect(result.systemPrompt).not.toContain('TOPIC REMINDER');
+    expect(result.systemPrompt).toContain('CONVERSATION INTEGRITY RULES');
+  });
+
+  it('exports TOPIC_LOCK_INTERVAL as 5', () => {
+    expect(TOPIC_LOCK_INTERVAL).toBe(5);
   });
 });
 
