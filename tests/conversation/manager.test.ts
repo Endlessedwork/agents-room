@@ -4,6 +4,7 @@ import { count, eq } from 'drizzle-orm';
 import { createTestDb } from '../setup';
 import { rooms, roomAgents, messages, providerKeys } from '@/db/schema';
 import { ConversationManager } from '@/lib/conversation/manager';
+import { ContextService } from '@/lib/conversation/context-service';
 
 // Mock the LLM gateway module
 vi.mock('@/lib/llm/gateway', () => ({
@@ -338,6 +339,21 @@ describe('ConversationManager', () => {
       .from(messages)
       .where(eq(messages.roomId, roomId));
     expect(value).toBe(3);
+  });
+
+  it('passes turnCount to ContextService.buildContext', async () => {
+    const buildContextSpy = vi.spyOn(ContextService, 'buildContext');
+
+    await ConversationManager.start(roomId, db);
+    await waitForMessages(db, roomId, 3); // turnLimit=3
+
+    // buildContext should have been called 3 times with turnCount 0, 1, 2
+    expect(buildContextSpy).toHaveBeenCalledTimes(3);
+    expect(buildContextSpy.mock.calls[0][3]).toBe(0); // first turn
+    expect(buildContextSpy.mock.calls[1][3]).toBe(1); // second turn
+    expect(buildContextSpy.mock.calls[2][3]).toBe(2); // third turn
+
+    buildContextSpy.mockRestore();
   });
 
   it('resume continues from existing message count', async () => {
