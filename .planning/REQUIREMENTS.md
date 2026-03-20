@@ -19,8 +19,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **AGNT-01**: User can create an agent with a name, persona/role, and system prompt
 - [x] **AGNT-02**: User can assign a specific LLM provider and model to each agent (Claude, GPT, Gemini)
 - [x] **AGNT-03**: User can add/remove agents from a room
-- [ ] **AGNT-04**: User can set a configurable turn limit per conversation session
-- [ ] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
+- [x] **AGNT-04**: User can set a configurable turn limit per conversation session
+- [x] **AGNT-05**: User can configure speaker selection strategy per room (round-robin or LLM-selected)
 
 ### Conversation Engine
 
@@ -83,8 +83,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-01 | Phase 5 | Complete |
 | AGNT-02 | Phase 5 | Complete |
 | AGNT-03 | Phase 5 | Complete |
-| AGNT-04 | Phase 6 | Pending |
-| AGNT-05 | Phase 6 | Pending |
+| AGNT-04 | Phase 6 | Complete |
+| AGNT-05 | Phase 6 | Complete |
 | CONV-01 | Phase 2 | Complete |
 | CONV-02 | Phase 2 | Complete |
 | CONV-03 | Phase 2 | Complete |
