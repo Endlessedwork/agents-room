@@ -1,99 +1,138 @@
 ---
 phase: 06-room-configuration-ui
-verified: 2026-03-20T15:30:00Z
+verified: 2026-03-20T17:00:00Z
 status: passed
-score: 5/5 must-haves verified
-re_verification: false
+score: 6/6 must-haves verified
+re_verification:
+  previous_status: passed
+  previous_score: 5/5
+  gaps_closed:
+    - "Edit button visible in ChatHeader when room is idle or completed"
+    - "Edit dialog opens pre-populated with current turnLimit and speakerStrategy"
+    - "Saving edit calls PATCH and updates room state"
+    - "Edit button hidden or disabled when room is running or paused"
+    - "409 error from PATCH is shown as user-facing toast/message"
+    - "Slider renders without console script-tag error"
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 6: Room Configuration UI Verification Report
 
-**Phase Goal:** Users can set turn limit and speaker selection strategy when creating/editing a room — closing the last two UI->DB wiring gaps
-**Verified:** 2026-03-20T15:30:00Z
+**Phase Goal:** Room Configuration UI — wire turnLimit and speakerStrategy through the full stack (UI -> API -> DB), provide edit capabilities for existing rooms, and fix slider console errors.
+**Verified:** 2026-03-20T17:00:00Z
 **Status:** passed
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — after gap closure (06-02 plan)
+
+## Background
+
+Initial VERIFICATION.md (2026-03-20T15:30:00Z) declared `status: passed` at 5/5, covering schema validation, POST persistence, and the PATCH endpoint itself. UAT (06-UAT.md, status: diagnosed) subsequently found two real gaps:
+
+1. No Edit Room UI — the PATCH endpoint had no frontend consumer (UAT test 4: major issue).
+2. Slider console script-tag error from `thumbAlignment='edge'` (UAT test 1: minor issue reported post-pass).
+
+Gap closure plan 06-02 was executed (commits `ea0e132` and `24a275f`). This re-verification checks those six new must-haves from 06-02-PLAN.md frontmatter.
 
 ## Goal Achievement
 
-### Observable Truths
+### Observable Truths (06-02 gap closure must-haves)
 
-| #  | Truth                                                                                        | Status     | Evidence                                                                                       |
-|----|----------------------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------|
-| 1  | User can set turnLimit (5-100) when creating a room via the wizard                           | VERIFIED   | Slider rendered at RoomWizard.tsx:227-244, min=5 max=100 step=5, state default 20             |
-| 2  | User can choose speakerStrategy (round-robin or llm-selected) when creating a room           | VERIFIED   | Select rendered at RoomWizard.tsx:251-266 with both enum values as SelectItem options          |
-| 3  | Room created with custom turnLimit persists that value to DB (not always default 20)         | VERIFIED   | POST handler inserts `turnLimit: parsed.data.turnLimit` (route.ts:49); DB test asserts 50 round-trips |
-| 4  | Room created with custom speakerStrategy persists that value to DB (not always round-robin)  | VERIFIED   | POST handler inserts `speakerStrategy: parsed.data.speakerStrategy` (route.ts:50); DB test asserts 'llm-selected' round-trips |
-| 5  | PATCH /api/rooms/:roomId updates turnLimit and speakerStrategy for existing rooms            | VERIFIED   | PATCH handler at [roomId]/route.ts:48-82, uses updateRoomSchema, 409 guard for running/paused |
+| #  | Truth                                                                 | Status     | Evidence                                                                                             |
+|----|-----------------------------------------------------------------------|------------|------------------------------------------------------------------------------------------------------|
+| 1  | Edit button visible in ChatHeader when room is idle or completed      | VERIFIED   | ChatHeader.tsx:128-134 renders `<EditRoomDialog>` unconditionally; disabled only when running/paused |
+| 2  | Edit dialog opens pre-populated with current turnLimit/speakerStrategy | VERIFIED   | EditRoomDialog.tsx:40-41 init state from props; handleOpenChange resets on re-open (lines 45-53)     |
+| 3  | Saving edit calls PATCH and updates room state                        | VERIFIED   | EditRoomDialog.tsx:59-63: `fetch('/api/rooms/${roomId}', { method:'PATCH', body: JSON.stringify(...) })` with response handling |
+| 4  | Edit button hidden or disabled when room is running or paused         | VERIFIED   | ChatHeader.tsx:132: `disabled={roomStatus === 'running' || roomStatus === 'paused'}`                 |
+| 5  | 409 error from PATCH shown as user-facing message                     | VERIFIED   | EditRoomDialog.tsx:68-70: `else if (res.status === 409) { setError('Cannot edit while conversation is active...') }` — error rendered at line 147 |
+| 6  | Slider renders without console script-tag error                       | VERIFIED   | slider.tsx: `thumbAlignment='edge'` completely absent — grep confirms zero matches                   |
 
-**Score:** 5/5 truths verified
+**Score:** 6/6 truths verified
+
+### Prior truths (regression check — from initial 5/5 verification)
+
+| #  | Truth                                                                                     | Status     | Regression check                                                          |
+|----|-------------------------------------------------------------------------------------------|------------|---------------------------------------------------------------------------|
+| P1 | User can set turnLimit (5-100) when creating a room via the wizard                        | VERIFIED   | RoomWizard.tsx unchanged; Slider still present                            |
+| P2 | User can choose speakerStrategy when creating a room                                      | VERIFIED   | RoomWizard.tsx unchanged; Select still present                            |
+| P3 | Room created with custom turnLimit persists to DB                                         | VERIFIED   | POST route.ts unchanged; test suite still at 27/27                        |
+| P4 | Room created with custom speakerStrategy persists to DB                                   | VERIFIED   | POST route.ts unchanged                                                   |
+| P5 | PATCH /api/rooms/:roomId updates turnLimit and speakerStrategy for existing rooms         | VERIFIED   | PATCH handler unchanged; now has a frontend consumer in EditRoomDialog     |
+
+No regressions found.
 
 ### Required Artifacts
 
-| Artifact                                     | Expected                                                       | Status   | Details                                                                                   |
-|----------------------------------------------|----------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------|
-| `src/lib/validations.ts`                     | createRoomSchema with turnLimit + speakerStrategy, updateRoomSchema | VERIFIED | Lines 6-7: turnLimit int min(5) max(100) default(20), speakerStrategy enum default round-robin; updateRoomSchema exported at line 10 |
-| `src/app/api/rooms/route.ts`                 | POST handler passing turnLimit + speakerStrategy to DB insert  | VERIFIED | Lines 49-50: both fields present in .values() call from parsed.data                       |
-| `src/app/api/rooms/[roomId]/route.ts`        | PATCH handler for room settings update                         | VERIFIED | export async function PATCH at line 48, uses updateRoomSchema, returns 409 on running/paused |
-| `src/components/rooms/RoomWizard.tsx`        | Slider for turnLimit, Select for speakerStrategy in Step 1     | VERIFIED | Slider at line 227 (value={[turnLimit]}), Select at line 251; both in step===0 block      |
-| `tests/api/rooms.test.ts`                    | Tests for turnLimit/speakerStrategy validation and persistence | VERIFIED | 27/27 tests pass; new describe blocks at lines 50-93 (schema) and 141-164 (DB persistence) |
+| Artifact                                     | Expected                                                   | Status   | Details                                                                            |
+|----------------------------------------------|------------------------------------------------------------|----------|------------------------------------------------------------------------------------|
+| `src/components/rooms/EditRoomDialog.tsx`    | Edit dialog with turnLimit slider and speakerStrategy select | VERIFIED | 164 lines; full PATCH integration with 409 handling; no stubs                    |
+| `src/components/rooms/ChatHeader.tsx`        | Edit button wired to dialog                                | VERIFIED | Imports EditRoomDialog (line 7), renders at line 128; disabled logic at line 132  |
+| `src/components/ui/slider.tsx`               | Slider without thumbAlignment='edge'                       | VERIFIED | 58 lines; `thumbAlignment` string absent from entire file                          |
+| `src/components/rooms/ChatView.tsx`          | speakerStrategy in ChatViewProps interface                 | VERIFIED | Line 26: `speakerStrategy: 'round-robin' | 'llm-selected'` added to room type      |
+| `src/app/(dashboard)/rooms/[roomId]/page.tsx` | speakerStrategy in RoomDetail interface                   | VERIFIED | Line 23: `speakerStrategy: 'round-robin' | 'llm-selected'` in RoomDetail interface |
 
 ### Key Link Verification
 
-| From                                    | To                          | Via                                                          | Status   | Details                                                            |
-|-----------------------------------------|-----------------------------|--------------------------------------------------------------|----------|--------------------------------------------------------------------|
-| `src/components/rooms/RoomWizard.tsx`   | POST /api/rooms             | handleCreate posts turnLimit + speakerStrategy in JSON body  | WIRED    | Lines 123-128: turnLimit and speakerStrategy both present in JSON.stringify body |
-| `src/app/api/rooms/route.ts`            | `src/lib/validations.ts`    | createRoomSchema.safeParse validates turnLimit + speakerStrategy | WIRED | Line 37: createRoomSchema.safeParse(body); schema imported at line 6 |
-| `src/app/api/rooms/route.ts`            | drizzle rooms table         | db.insert passes turnLimit + speakerStrategy to .values()    | WIRED    | Lines 49-50: `turnLimit: parsed.data.turnLimit`, `speakerStrategy: parsed.data.speakerStrategy` |
+| From                                          | To                          | Via                                | Status   | Details                                                                                    |
+|-----------------------------------------------|-----------------------------|------------------------------------|----------|--------------------------------------------------------------------------------------------|
+| `src/components/rooms/EditRoomDialog.tsx`     | `/api/rooms/[roomId]`       | PATCH fetch                        | WIRED    | EditRoomDialog.tsx:59-63: `fetch('/api/rooms/${roomId}', { method: 'PATCH', ... })`; response JSON consumed at lines 64-67 |
+| `src/components/rooms/ChatHeader.tsx`         | `EditRoomDialog.tsx`        | import and render                  | WIRED    | ChatHeader.tsx:7 imports; lines 128-134 render with all required props including disabled logic |
 
 ### Requirements Coverage
 
-| Requirement | Source Plan   | Description                                                                         | Status    | Evidence                                                                                              |
-|-------------|---------------|-------------------------------------------------------------------------------------|-----------|-------------------------------------------------------------------------------------------------------|
-| AGNT-04     | 06-01-PLAN.md | User can set a configurable turn limit per conversation session                     | SATISFIED | Slider in RoomWizard (5-100), schema validation, POST persistence, PATCH update — full UI-to-DB chain |
-| AGNT-05     | 06-01-PLAN.md | User can configure speaker selection strategy per room (round-robin or LLM-selected) | SATISFIED | Select in RoomWizard (two options), schema enum, POST persistence, PATCH update — full UI-to-DB chain |
+| Requirement | Source Plans        | Description                                                                          | Status    | Evidence                                                                                                     |
+|-------------|---------------------|--------------------------------------------------------------------------------------|-----------|--------------------------------------------------------------------------------------------------------------|
+| AGNT-04     | 06-01-PLAN.md, 06-02-PLAN.md | User can set a configurable turn limit per conversation session              | SATISFIED | Slider in RoomWizard (creation) and EditRoomDialog (edit); schema validation; POST + PATCH persistence        |
+| AGNT-05     | 06-01-PLAN.md, 06-02-PLAN.md | User can configure speaker selection strategy per room (round-robin or LLM) | SATISFIED | Select in RoomWizard (creation) and EditRoomDialog (edit); schema enum; POST + PATCH persistence              |
 
-No orphaned requirements: both AGNT-04 and AGNT-05 are the only Phase 6 requirements in REQUIREMENTS.md (traceability table lines 86-87), and both appear in the plan's `requirements` field.
+No orphaned requirements: AGNT-04 and AGNT-05 are the only Phase 6 requirements in REQUIREMENTS.md, and both appear in both plan `requirements` fields.
 
 ### Anti-Patterns Found
 
-None. No TODO/FIXME/PLACEHOLDER comments in any modified file. No stub implementations (return null, return {}, empty handlers). All handlers perform real DB operations. The two HTML `placeholder=` attributes in RoomWizard.tsx are input field hint text, not code stubs.
+None. Scanned all five modified files:
+
+- `EditRoomDialog.tsx` — no TODO/FIXME, no stub returns, PATCH fetch is real with full response handling
+- `slider.tsx` — no stub; `thumbAlignment='edge'` fully removed
+- `ChatHeader.tsx` — no stub; EditRoomDialog rendered with real props
+- `ChatView.tsx` — type interface update only; no stub
+- `page.tsx` — type interface update only; no stub
 
 ### Human Verification Required
 
-#### 1. Slider interaction feel
+#### 1. Edit button visibility and dialog UX
 
-**Test:** Open the room creation wizard (/rooms/new), drag the turn limit slider from 20 to 50, observe the numeric display updating live.
-**Expected:** Display updates synchronously as slider moves; value 50 appears in the Review step summary.
-**Why human:** Visual feedback and smooth drag interaction cannot be verified programmatically.
+**Test:** Navigate to an existing room in idle status. Verify an "Edit" button appears in the header. Click it; verify a dialog opens showing the current turnLimit slider and speakerStrategy select pre-populated.
+**Expected:** Dialog opens with current values. Changing values and clicking Save updates the room and refreshes the page.
+**Why human:** Visual rendering of dialog and slider interaction cannot be verified programmatically.
 
-#### 2. Select dropdown behavior
+#### 2. Edit button disabled state for active rooms
 
-**Test:** In Step 1, click the Speaker selection dropdown, choose "LLM-Selected", proceed to the Review step.
-**Expected:** Review step shows "LLM-Selected" for Speaker field; created room in DB has speakerStrategy='llm-selected'.
-**Why human:** Dropdown open/close, option rendering, and end-to-end value persistence require a running browser and DB inspection.
+**Test:** Start a conversation in a room (status becomes 'running'). Observe the Edit button state.
+**Expected:** Edit button is greyed out / non-interactive while the conversation is running or paused.
+**Why human:** Requires a live running conversation to observe the disabled UI state.
 
-#### 3. PATCH endpoint rejects mid-run edits
+#### 3. 409 error message display
 
-**Test:** Start a conversation in a room, then PATCH /api/rooms/:roomId with a new turnLimit.
-**Expected:** API responds 409 with error message "Cannot update room settings while conversation is running or paused".
-**Why human:** Requires a running conversation to trigger the guard; cannot be exercised by the existing test suite without an integration setup.
+**Test:** Start a conversation in a room, then attempt to PATCH the room via the Edit dialog (if the button is accessible or via curl) while it is running.
+**Expected:** Dialog shows "Cannot edit while conversation is active. Stop the conversation first." inline error text.
+**Why human:** Requires running conversation state; inline error text requires visual confirmation.
 
 ### Gaps Summary
 
-No gaps. All five observable truths are verified. The full chain is wired:
+No gaps. All six 06-02 must-haves are verified. All five prior truths from the initial verification show no regressions.
 
-1. RoomWizard Step 1 renders a functional Slider (turnLimit) and Select (speakerStrategy).
-2. The Review step displays both values.
-3. handleCreate includes both fields in the POST body.
-4. The POST route validates via createRoomSchema (which now includes turnLimit/speakerStrategy with defaults and constraints) and inserts them into the DB.
-5. The PATCH route accepts partial updates via updateRoomSchema with a 409 guard for active conversations.
-6. 27 tests pass covering schema validation, enum constraints, defaults, and DB persistence.
-7. Build compiles with zero TypeScript errors.
-8. Both commits (56c6ac4, a058814) exist in git history.
+The full edit flow is wired:
 
-AGNT-04 and AGNT-05 are fully satisfied.
+1. ChatHeader always renders EditRoomDialog — disabled when room is running/paused, enabled when idle.
+2. EditRoomDialog pre-populates state from props and resets on re-open.
+3. On save, issues PATCH to `/api/rooms/:roomId` with `{ turnLimit, speakerStrategy }`.
+4. 200 response closes dialog and triggers `window.location.reload()` to refresh room data.
+5. 409 response renders inline error message in dialog.
+6. slider.tsx no longer carries `thumbAlignment='edge'` — the script-tag injection path is eliminated.
+7. Both gap closure commits (`ea0e132`, `24a275f`) confirmed in git history.
+
+AGNT-04 and AGNT-05 are fully satisfied across the complete lifecycle: creation (RoomWizard) and editing (EditRoomDialog), with schema validation at both entry points and DB persistence via POST and PATCH.
 
 ---
 
-_Verified: 2026-03-20T15:30:00Z_
+_Verified: 2026-03-20T17:00:00Z_
 _Verifier: Claude (gsd-verifier)_
