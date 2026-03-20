@@ -210,6 +210,25 @@ export class ConversationManager {
             break;
           }
 
+          // Check for convergence (cross-agent agreement — distinct from verbatim repetition)
+          const hasConverged = await ContextService.detectConvergence(db, roomId, turnCount);
+          if (hasConverged) {
+            await db.update(rooms).set({ status: 'paused' }).where(eq(rooms.id, roomId));
+            emitSSE(roomId, 'status', { status: 'paused' });
+            await db.insert(messages).values({
+              id: nanoid(),
+              roomId,
+              roomAgentId: null,
+              role: 'system',
+              content: '[Auto-paused: agents reached consensus]',
+              model: null,
+              inputTokens: null,
+              outputTokens: null,
+            });
+            emitSSE(roomId, 'system', { content: '[Auto-paused: agents reached consensus]' });
+            break;
+          }
+
           turnCount++;
         }
       } finally {
