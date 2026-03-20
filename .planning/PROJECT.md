@@ -21,10 +21,12 @@ Agents must be able to have meaningful conversations with each other that produc
 ### Active
 
 - [ ] Multiple chat rooms, each with its own topic/purpose
-- [ ] Multiple chat rooms, each with its own topic/purpose
 - [ ] User can also initiate/open topics for agents to discuss
-- [ ] Real-time message display as agents converse
-- [ ] User can type messages into the room to participate
+- [x] Real-time message display as agents converse — Validated in Phase 3: Real-Time UI
+- [x] User can type messages into the room to participate — Validated in Phase 3: Real-Time UI
+- [x] Token usage visibility per room — Validated in Phase 4: Insights
+- [x] On-demand conversation summaries — Validated in Phase 4: Insights
+- [x] Conversation export (Markdown/JSON) — Validated in Phase 4: Insights
 - [ ] Quality conversations that surface insights and solve problems
 
 ### Out of Scope
@@ -57,4 +59,4 @@ Agents must be able to have meaningful conversations with each other that produc
 | Single-user focus | Simplifies auth/permissions, faster to ship | — Pending |
 
 ---
-*Last updated: 2026-03-20 after Phase 2 completion — conversation engine operational*
+*Last updated: 2026-03-20 after Phase 4 completion — insights features (token display, summaries, export) operational*
