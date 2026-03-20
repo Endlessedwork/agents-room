@@ -32,9 +32,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Real-Time UI
 
-- [ ] **RTUI-01**: Messages stream in real-time as agents generate tokens (SSE)
+- [x] **RTUI-01**: Messages stream in real-time as agents generate tokens (SSE)
 - [ ] **RTUI-02**: Each agent shows a "thinking" indicator while generating a response
-- [ ] **RTUI-03**: User can type and send messages into the conversation mid-flow
+- [x] **RTUI-03**: User can type and send messages into the conversation mid-flow
 - [ ] **RTUI-04**: Chat interface displays agent name, role badge, and model used per message
 
 ### Insights & Export
@@ -90,9 +90,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONV-03 | Phase 2 | Complete |
 | CONV-04 | Phase 2 | Complete |
 | CONV-05 | Phase 2 | Complete |
-| RTUI-01 | Phase 3 | Pending |
+| RTUI-01 | Phase 3 | Complete |
 | RTUI-02 | Phase 3 | Pending |
-| RTUI-03 | Phase 3 | Pending |
+| RTUI-03 | Phase 3 | Complete |
 | RTUI-04 | Phase 3 | Pending |
 | INSI-01 | Phase 4 | Pending |
 | INSI-02 | Phase 4 | Pending |
