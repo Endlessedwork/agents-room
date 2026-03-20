@@ -39,6 +39,8 @@ interface ChatStore {
   roomStatus: 'idle' | 'running' | 'paused';
   turnProgress: { current: number; total: number };
   tokenTotals: { input: number; output: number };
+  summary: string | null;
+  summaryLoading: boolean;
 
   // Actions
   loadHistory: (roomId: string) => Promise<void>;
@@ -64,6 +66,9 @@ interface ChatStore {
   addUserMessage: (msg: { id: string; content: string; createdAt: string }) => void;
   setRoomStatus: (status: 'idle' | 'running' | 'paused') => void;
   updateTokenTotals: (inputTokens: number, outputTokens: number) => void;
+  setSummary: (text: string) => void;
+  clearSummary: () => void;
+  setSummaryLoading: (loading: boolean) => void;
   reset: () => void;
 }
 
@@ -74,6 +79,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   roomStatus: 'idle',
   turnProgress: { current: 0, total: 0 },
   tokenTotals: { input: 0, output: 0 },
+  summary: null,
+  summaryLoading: false,
 
   loadHistory: async (roomId: string) => {
     const res = await fetch(`/api/rooms/${roomId}/messages`);
@@ -225,6 +232,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
+  setSummary: (text) => set({ summary: text, summaryLoading: false }),
+
+  clearSummary: () => set({ summary: null }),
+
+  setSummaryLoading: (loading) => set({ summaryLoading: loading }),
+
   reset: () => {
     set({
       messages: [],
@@ -233,6 +246,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       roomStatus: 'idle',
       turnProgress: { current: 0, total: 0 },
       tokenTotals: { input: 0, output: 0 },
+      summary: null,
+      summaryLoading: false,
     });
   },
 }));
