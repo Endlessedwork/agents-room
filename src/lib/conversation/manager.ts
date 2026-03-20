@@ -7,6 +7,7 @@ import { streamLLM } from '@/lib/llm/gateway';
 import type { ProviderName } from '@/lib/llm/providers';
 import { ContextService } from './context-service';
 import { SpeakerSelector } from './speaker-selector';
+import { emitSSE } from '@/lib/sse/stream-registry';
 
 type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -48,6 +49,7 @@ export class ConversationManager {
 
     // Set status to running
     await db.update(rooms).set({ status: 'running' }).where(eq(rooms.id, roomId));
+    emitSSE(roomId, 'status', { status: 'running' });
 
     // Load agents ordered by position
     const agents = await db.query.roomAgents.findMany({
@@ -85,6 +87,18 @@ export class ConversationManager {
           // Get provider config for this agent
           const config = await getProviderConfig(agent.provider, db);
 
+          // Emit turn:start before LLM call
+          emitSSE(roomId, 'turn:start', {
+            agentId: agent.id,
+            agentName: agent.name,
+            avatarColor: agent.avatarColor,
+            avatarIcon: agent.avatarIcon,
+            promptRole: agent.promptRole,
+            model: agent.model,
+            turnNumber: turnCount + 1,
+            totalTurns: turnLimit,
+          });
+
           // Create per-turn abort controller, replacing the sentinel
           const controller = new AbortController();
           activeControllers.set(roomId, controller);
@@ -108,6 +122,7 @@ export class ConversationManager {
             // Consume the text stream
             for await (const chunk of result.textStream) {
               fullText += chunk;
+              emitSSE(roomId, 'token', { agentId: agent.id, text: chunk });
             }
 
             // Await token usage
@@ -120,6 +135,7 @@ export class ConversationManager {
               (err.name === 'AbortError' || (err as DOMException).name === 'AbortError')
             ) {
               aborted = true;
+              emitSSE(roomId, 'turn:cancel', { agentId: agent.id });
             } else {
               // Non-abort error: persist system error message and break
               const errMsg = err instanceof Error ? err.message : String(err);
@@ -133,6 +149,7 @@ export class ConversationManager {
                 inputTokens: null,
                 outputTokens: null,
               });
+              emitSSE(roomId, 'system', { content: `[Error: ${errMsg}]` });
               break;
             }
           } finally {
@@ -145,13 +162,20 @@ export class ConversationManager {
           if (aborted) break;
 
           // Persist the agent message
+          const msgId = nanoid();
           await db.insert(messages).values({
-            id: nanoid(),
+            id: msgId,
             roomId,
             roomAgentId: agent.id,
             role: 'agent',
             content: fullText,
             model: agent.model,
+            inputTokens,
+            outputTokens,
+          });
+          emitSSE(roomId, 'turn:end', {
+            agentId: agent.id,
+            messageId: msgId,
             inputTokens,
             outputTokens,
           });
@@ -163,6 +187,7 @@ export class ConversationManager {
           const isRepetitive = await ContextService.detectRepetition(db, roomId);
           if (isRepetitive) {
             await db.update(rooms).set({ status: 'paused' }).where(eq(rooms.id, roomId));
+            emitSSE(roomId, 'status', { status: 'paused' });
             await db.insert(messages).values({
               id: nanoid(),
               roomId,
@@ -173,6 +198,7 @@ export class ConversationManager {
               inputTokens: null,
               outputTokens: null,
             });
+            emitSSE(roomId, 'system', { content: '[Auto-paused: agents are repeating themselves]' });
             break;
           }
 
@@ -185,6 +211,7 @@ export class ConversationManager {
         const finalRoom = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });
         if (finalRoom?.status === 'running') {
           await db.update(rooms).set({ status: 'idle' }).where(eq(rooms.id, roomId));
+          emitSSE(roomId, 'status', { status: 'idle' });
         }
       }
     })().catch((err) => {
@@ -197,6 +224,7 @@ export class ConversationManager {
    */
   static async pause(roomId: string, db: DrizzleDB): Promise<void> {
     await db.update(rooms).set({ status: 'paused' }).where(eq(rooms.id, roomId));
+    emitSSE(roomId, 'status', { status: 'paused' });
   }
 
   /**
@@ -204,6 +232,7 @@ export class ConversationManager {
    */
   static async stop(roomId: string, db: DrizzleDB): Promise<void> {
     await db.update(rooms).set({ status: 'idle' }).where(eq(rooms.id, roomId));
+    emitSSE(roomId, 'status', { status: 'idle' });
     const controller = activeControllers.get(roomId);
     if (controller) {
       controller.abort();
