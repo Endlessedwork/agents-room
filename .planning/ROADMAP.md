@@ -42,7 +42,10 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   2. Before round 2 and every subsequent round, a system-injected anti-agreement instruction appears in agent context (visible in conversation logs)
   3. Every N turns, agents receive a topic-lock reminder that redirects drift back to the original room topic
   4. A conversation on a debatable topic runs 10+ turns without agents collapsing to uniform agreement
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Anti-sycophancy and topic-lock injection logic in ContextService
+- [ ] 07-02-PLAN.md — Thread turnCount from ConversationManager to buildContext
 
 ### Phase 8: Cost Estimation
 **Goal**: Users see estimated dollar cost for every room in real time, with honest "est." labeling and graceful handling of unknown or local models
@@ -97,7 +100,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 4. Insights | v1.0 | 3/3 | Complete | 2026-03-20 |
 | 5. Foundation Verification | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 6. Room Configuration UI | v1.0 | 2/2 | Complete | 2026-03-20 |
-| 7. Conversation Quality | v1.1 | 0/TBD | Not started | - |
+| 7. Conversation Quality | v1.1 | 0/2 | Planning | - |
 | 8. Cost Estimation | v1.1 | 0/TBD | Not started | - |
 | 9. Convergence Detection | v1.1 | 0/TBD | Not started | - |
 | 10. Parallel First Round | v1.1 | 0/TBD | Not started | - |
