@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 06-room-configuration-ui
 source: 06-01-SUMMARY.md
 started: 2026-03-20T12:00:00Z
@@ -50,8 +50,16 @@ skipped: 1
   reason: "User reported: ไม่มีปุ่มให้แก้ไขห้องที่มีอยู่แล้ว — PATCH endpoint มีแต่ไม่มี UI เข้าถึง"
   severity: major
   test: 4
-  artifacts: []
-  missing: []
+  root_cause: "Edit room UI was never planned in Phase 06. The PATCH endpoint was built as future infrastructure ('enables future in-place editing') but no UI component or edit button was scoped."
+  artifacts:
+    - path: "src/app/api/rooms/[roomId]/route.ts"
+      issue: "PATCH endpoint exists but has no frontend consumer"
+    - path: "src/components/rooms/RoomWizard.tsx"
+      issue: "Creation-only component, no edit mode"
+  missing:
+    - "Edit button on room card or room header"
+    - "Edit dialog/panel pre-populated with current turnLimit and speakerStrategy"
+    - "PATCH call on save with 409 error handling for active rooms"
   debug_session: ""
 
 - truth: "Slider component renders without console errors"
@@ -59,8 +67,10 @@ skipped: 1
   reason: "User reported: Console error — script tag rendered inside React component in slider.tsx:48 (base-ui Slider.Thumb). Occurs every time New Room page loads."
   severity: minor
   test: 1
+  root_cause: "thumbAlignment='edge' in slider.tsx triggers base-ui's pre-hydration <script> injection (SliderThumb.js lines 307-318). React's strict mode logs 'Encountered a script tag' warning which cannot be suppressed by suppressHydrationWarning."
   artifacts:
     - path: "src/components/ui/slider.tsx"
-      issue: "base-ui Slider renders script tag incompatible with Next.js 16 client rendering"
-  missing: []
+      issue: "thumbAlignment='edge' on line 34 activates script-rendering code path"
+  missing:
+    - "Remove thumbAlignment='edge' or change to 'center' to eliminate the script render path"
   debug_session: ""
