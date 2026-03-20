@@ -27,7 +27,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 7: Conversation Quality** — Anti-sycophancy prompts and topic-lock injection so agents maintain distinct stances (completed 2026-03-20)
 - [x] **Phase 8: Cost Estimation** — Real-time estimated cost display per room using static model pricing (completed 2026-03-20)
-- [ ] **Phase 9: Convergence Detection** — Auto-pause when agents reach genuine consensus, with system message explaining why
+- [x] **Phase 9: Convergence Detection** — Auto-pause when agents reach genuine consensus, with system message explaining why (completed 2026-03-20)
 - [ ] **Phase 10: Parallel First Round** — All agents respond independently in round 1 before seeing each other
 - [ ] **Phase 11: Tech Debt Cleanup** — Remove dead code, fix type errors, narrow over-fetching endpoint
 
@@ -70,7 +70,7 @@ Plans:
   2. Convergence auto-pause never fires before turn 6, preventing false positives on early pleasantries
   3. A system message appears in the chat explaining that agents reached consensus and the conversation was paused
   4. The paused conversation can be resumed by the user via the existing resume control
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 09-01-PLAN.md — TDD: detectConvergence method in ContextService (AND logic, turn guard, cross-agent pairing)
 - [ ] 09-02-PLAN.md — Wire detectConvergence into ConversationManager turn loop + integration tests
@@ -108,6 +108,6 @@ Plans:
 | 6. Room Configuration UI | v1.0 | 2/2 | Complete | 2026-03-20 |
 | 7. Conversation Quality | 2/2 | Complete   | 2026-03-20 | - |
 | 8. Cost Estimation | 2/2 | Complete   | 2026-03-20 | - |
-| 9. Convergence Detection | 1/2 | In Progress|  | - |
+| 9. Convergence Detection | 2/2 | Complete   | 2026-03-20 | - |
 | 10. Parallel First Round | v1.1 | 0/TBD | Not started | - |
 | 11. Tech Debt Cleanup | v1.1 | 0/TBD | Not started | - |

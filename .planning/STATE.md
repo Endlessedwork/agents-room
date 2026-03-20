@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Conversation Quality & Polish
 status: unknown
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-20T21:56:52.715Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-20T22:05:24.365Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 09 (convergence-detection) — EXECUTING
-Plan: 1 of 2
+Phase: 09 (convergence-detection) — COMPLETE
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Plan: 1 of 2
 
 | Phase 08-cost-estimation P02 | 20min | 4 tasks | 4 files |
 | Phase 09-convergence-detection P01 | 2min | 2 tasks | 2 files |
+| Phase 09-convergence-detection P02 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,7 @@ Key v1.1 constraints from research:
 - [Phase 08-02]: estimatedCostState lives in chatStore alongside tokenTotals — single source of truth for all per-room financial metrics
 - [Phase 08-02]: loadHistory rehydrates cost from roomAgent.provider already returned by messages API — no schema changes needed
 - [Phase 09-convergence-detection]: detectConvergence uses AND-logic: both agreement phrase and cross-agent Jaccard >= 0.35 required; CONVERGENCE_MIN_TURNS=6 with 0-based turnCount guard (fires from turnCount>=5)
+- [Phase 09-02]: Spy on detectConvergence and detectRepetition in integration tests to isolate manager wiring from algorithm correctness
 
 ### Pending Todos
 
@@ -72,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20T21:56:52.712Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-03-20T22:05:24.362Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
