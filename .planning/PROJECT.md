@@ -35,7 +35,7 @@ Agents must be able to have meaningful conversations with each other that produc
 ### Active
 
 - ✓ Quality conversations that surface insights and solve problems — Validated in Phase 7: Conversation Quality
-- [ ] Cost estimation display per room (token counts exist, pricing data needed)
+- ✓ Cost estimation display per room — Validated in Phase 8: Cost Estimation
 - [ ] Independent parallel first round (agents respond before seeing each other)
 - [ ] Convergence detection (auto-stop when agents reach consensus)
 - [ ] Clean up tech debt (orphaned files, type errors, over-fetching)
@@ -73,7 +73,7 @@ Known tech debt: orphaned ConversationPanel.tsx, test file type errors, over-fet
 
 - **LLM Providers**: Must support multiple providers — each agent can use a different model
 - **Deployment**: Personal use, runs locally or simple server
-- **Cost awareness**: Multiple agents × LLM API calls — token visibility shipped, cost estimation deferred
+- **Cost awareness**: Multiple agents × LLM API calls — token visibility and cost estimation shipped
 - **Browser**: SSE-based streaming, no WebSocket complexity
 
 ## Key Decisions
@@ -89,7 +89,7 @@ Known tech debt: orphaned ConversationPanel.tsx, test file type errors, over-fet
 | Zustand for client state | Lightweight, no boilerplate vs Redux | ✓ Good — chatStore handles complex streaming state well |
 | Transient summary (not persisted) | Summary is cheap to regenerate, avoids DB schema change | ✓ Good — simple, works via URL param for export |
 | window.location.reload for edit save | Simpler than prop threading for infrequent action | ⚠️ Revisit — could use router.refresh() |
-| Token counts only (no cost) | Cost requires dynamic pricing per model/provider | — Deferred to v2 |
+| Token counts only (no cost) | Cost requires dynamic pricing per model/provider | ✓ Resolved — Phase 8 added cost estimation via llm-info |
 
 ---
-*Last updated: 2026-03-21 after Phase 7 (Conversation Quality) complete*
+*Last updated: 2026-03-21 after Phase 8 (Cost Estimation) complete*
