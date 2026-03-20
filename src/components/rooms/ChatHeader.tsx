@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useChatStore, formatTokenCount } from '@/stores/chatStore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EditRoomDialog } from './EditRoomDialog';
 
 interface ChatHeaderProps {
   room: {
@@ -11,6 +12,8 @@ interface ChatHeaderProps {
     name: string;
     topic: string | null;
     turnLimit: number;
+    speakerStrategy: 'round-robin' | 'llm-selected';
+    status: 'idle' | 'running' | 'paused';
   };
 }
 
@@ -122,6 +125,13 @@ export function ChatHeader({ room }: ChatHeaderProps) {
 
       {/* Right: controls */}
       <div className="flex items-center gap-2">
+        <EditRoomDialog
+          roomId={room.id}
+          currentTurnLimit={room.turnLimit}
+          currentSpeakerStrategy={room.speakerStrategy}
+          disabled={roomStatus === 'running' || roomStatus === 'paused'}
+          onSaved={() => window.location.reload()}
+        />
         {hasMessages && (
           <Button
             variant="outline"

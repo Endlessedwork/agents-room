@@ -20,6 +20,7 @@ interface RoomDetail {
   topic: string | null;
   status: 'idle' | 'running' | 'paused';
   turnLimit: number;
+  speakerStrategy: 'round-robin' | 'llm-selected';
   roomAgents: RoomAgent[];
 }
 
