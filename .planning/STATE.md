@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-insights-04-01-PLAN.md
-last_updated: "2026-03-20T11:15:22.426Z"
+stopped_at: Completed 04-insights-04-02-PLAN.md
+last_updated: "2026-03-20T11:19:30.000Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 04 (insights) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -90,6 +90,9 @@ Recent decisions affecting current work:
 - [Phase 04-insights]: formatTokenCount exported as pure function outside store — reusable without store access
 - [Phase 04-insights]: loadHistory computes tokenTotals from persisted messages so history loads show correct totals
 - [Phase 04-insights]: turn:end handler parses SSE data once, passes to both completeTurn and updateTokenTotals
+- [Phase 04-insights]: Summary is transient Zustand state only (not persisted to DB) — re-clicking Summarize replaces via setSummary
+- [Phase 04-insights]: handleSummarize uses useChatStore.getState() for imperative async store access to avoid closure staleness
+- [Phase 04-insights]: First room agent for summary endpoint determined by position column ASC — consistent with ConversationManager speaker ordering
 
 ### Pending Todos
 
@@ -103,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T11:15:22.422Z
-Stopped at: Completed 04-insights-04-01-PLAN.md
+Last session: 2026-03-20T11:19:30.000Z
+Stopped at: Completed 04-insights-04-02-PLAN.md
 Resume file: None
