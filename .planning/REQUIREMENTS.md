@@ -27,8 +27,8 @@ Requirements for v1.1 milestone. Each maps to roadmap phases.
 
 ### Convergence Detection
 
-- [ ] **CONV-01**: System detects consensus via cross-agent similarity + agreement phrases
-- [ ] **CONV-02**: Auto-pause triggers only after minimum 6 turns
+- [x] **CONV-01**: System detects consensus via cross-agent similarity + agreement phrases
+- [x] **CONV-02**: Auto-pause triggers only after minimum 6 turns
 - [ ] **CONV-03**: System message explains why conversation was paused
 
 ### Tech Debt
@@ -75,8 +75,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COST-01 | Phase 8 | Complete |
 | COST-02 | Phase 8 | Complete |
 | COST-03 | Phase 8 | Complete |
-| CONV-01 | Phase 9 | Pending |
-| CONV-02 | Phase 9 | Pending |
+| CONV-01 | Phase 9 | Complete |
+| CONV-02 | Phase 9 | Complete |
 | CONV-03 | Phase 9 | Pending |
 | PARA-01 | Phase 10 | Pending |
 | PARA-02 | Phase 10 | Pending |

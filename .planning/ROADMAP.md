@@ -70,7 +70,7 @@ Plans:
   2. Convergence auto-pause never fires before turn 6, preventing false positives on early pleasantries
   3. A system message appears in the chat explaining that agents reached consensus and the conversation was paused
   4. The paused conversation can be resumed by the user via the existing resume control
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 09-01-PLAN.md — TDD: detectConvergence method in ContextService (AND logic, turn guard, cross-agent pairing)
 - [ ] 09-02-PLAN.md — Wire detectConvergence into ConversationManager turn loop + integration tests
@@ -108,6 +108,6 @@ Plans:
 | 6. Room Configuration UI | v1.0 | 2/2 | Complete | 2026-03-20 |
 | 7. Conversation Quality | 2/2 | Complete   | 2026-03-20 | - |
 | 8. Cost Estimation | 2/2 | Complete   | 2026-03-20 | - |
-| 9. Convergence Detection | v1.1 | 0/2 | Planning complete | - |
+| 9. Convergence Detection | 1/2 | In Progress|  | - |
 | 10. Parallel First Round | v1.1 | 0/TBD | Not started | - |
 | 11. Tech Debt Cleanup | v1.1 | 0/TBD | Not started | - |
