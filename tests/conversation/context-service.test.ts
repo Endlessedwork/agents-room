@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { nanoid } from 'nanoid';
+import { eq } from 'drizzle-orm';
 import { createTestDb } from '../setup';
 import { ContextService } from '@/lib/conversation/context-service';
 import { rooms, roomAgents, messages } from '@/db/schema';
@@ -84,10 +85,17 @@ const baseAgent = () => ({
 });
 
 describe('ContextService.buildContext', () => {
-  it('returns empty messages array and system prompt when no messages exist', async () => {
+  it('seeds with room topic when no messages exist', async () => {
+    // Set a topic on the room
+    await db.update(rooms).set({ topic: 'AI safety' }).where(eq(rooms.id, roomId));
     const result = await ContextService.buildContext(db, roomId, baseAgent());
-    expect(result.messages).toEqual([]);
+    expect(result.messages).toEqual([{ role: 'user', content: 'Discussion topic: AI safety' }]);
     expect(result.systemPrompt).toBe('You are a helpful assistant.');
+  });
+
+  it('seeds with generic prompt when no messages and no topic', async () => {
+    const result = await ContextService.buildContext(db, roomId, baseAgent());
+    expect(result.messages).toEqual([{ role: 'user', content: 'Begin the conversation.' }]);
   });
 
   it('returns all messages in chronological order when fewer than WINDOW_SIZE messages exist', async () => {

@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '@/db/schema';
-import { messages } from '@/db/schema';
+import { messages, rooms } from '@/db/schema';
 
 type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -75,6 +75,19 @@ export class ContextService {
       role: row.roomAgentId === agent.id ? ('assistant' as const) : ('user' as const),
       content: row.content,
     }));
+
+    // LLM APIs require at least one user message. When conversation history is
+    // empty, seed with the room topic so the first agent has something to respond to.
+    if (mappedMessages.length === 0) {
+      const room = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });
+      const topic = room?.topic?.trim();
+      mappedMessages.push({
+        role: 'user' as const,
+        content: topic
+          ? `Discussion topic: ${topic}`
+          : 'Begin the conversation.',
+      });
+    }
 
     return { systemPrompt, messages: mappedMessages };
   }
