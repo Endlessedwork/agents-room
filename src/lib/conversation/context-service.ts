@@ -24,6 +24,19 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return intersection.size / union.size;
 }
 
+export const TOPIC_LOCK_INTERVAL = 5;
+
+const ANTI_SYCOPHANCY_PROMPT = `CONVERSATION INTEGRITY RULES:
+You must maintain your stated position unless presented with a genuinely compelling argument backed by specific evidence. Do not capitulate to social pressure or mere repetition.
+
+Forbidden agreement phrases (do not use unless you have genuinely changed position with stated reasons):
+- "great point" / "that's a great point"
+- "you're absolutely right" / "you're right"
+- "I completely agree" / "I agree"
+- "you've convinced me" (unless you actually have been)
+
+When disagreeing: state your specific reasons, cite evidence, and steelman your own position before engaging counterarguments. Acknowledge the other viewpoint without abandoning your own. If you genuinely change your position, state explicitly what argument or evidence convinced you.`;
+
 // --- ContextService ---
 
 export class ContextService {
@@ -45,7 +58,8 @@ export class ContextService {
       promptPersonality?: string | null;
       promptRules?: string | null;
       promptConstraints?: string | null;
-    }
+    },
+    turnCount: number = 0
   ): Promise<{
     systemPrompt: string;
     messages: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -57,7 +71,31 @@ export class ContextService {
       agent.promptRules,
       agent.promptConstraints,
     ].filter((p): p is string => p != null && p.length > 0);
-    const systemPrompt = promptParts.join('\n\n');
+
+    // Build base system prompt
+    let systemPrompt = promptParts.join('\n\n');
+
+    // Inject anti-sycophancy directive from round 2 onward (turnCount >= 1)
+    const addenda: string[] = [];
+
+    if (turnCount >= 1) {
+      addenda.push(ANTI_SYCOPHANCY_PROMPT);
+    }
+
+    // Inject topic-lock reminder every TOPIC_LOCK_INTERVAL turns
+    if (turnCount > 0 && turnCount % TOPIC_LOCK_INTERVAL === 0) {
+      const room = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });
+      const topic = room?.topic?.trim();
+      if (topic) {
+        addenda.push(
+          `TOPIC REMINDER: The discussion topic is "${topic}". Relate your response directly back to this topic.`
+        );
+      }
+    }
+
+    if (addenda.length > 0) {
+      systemPrompt = systemPrompt + '\n\n' + addenda.join('\n\n');
+    }
 
     // Query last WINDOW_SIZE messages ordered by createdAt DESC, then reverse
     const rows = await db
