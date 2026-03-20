@@ -102,6 +102,10 @@ Plans:
 **Depends on:** Phase 1, Phase 2
 **Requirements:** AGNT-04, AGNT-05
 **Gap Closure:** Closes gaps from audit — RoomWizard POST body missing turnLimit and speakerStrategy fields
+**Plans:** 1 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Extend validation schemas, wire POST/PATCH endpoints, add Slider+Select to RoomWizard
 
 ## Progress
 
@@ -115,4 +119,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 3. Real-Time UI | 1/3 | In Progress|  |
 | 4. Insights | 3/3 | Complete   | 2026-03-20 |
 | 5. Foundation Verification | 1/1 | Complete   | 2026-03-20 |
-| 6. Room Configuration UI | 0/0 | Pending | |
+| 6. Room Configuration UI | 0/1 | Pending | |
