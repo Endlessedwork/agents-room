@@ -10,6 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Slider } from '@/components/ui/slider';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { type Agent } from '@/stores/agentStore';
 import { useRoomStore } from '@/stores/roomStore';
@@ -48,6 +56,8 @@ export function RoomWizard() {
   const [roomName, setRoomName] = useState('');
   const [topic, setTopic] = useState('');
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
+  const [turnLimit, setTurnLimit] = useState<number>(20);
+  const [speakerStrategy, setSpeakerStrategy] = useState<'round-robin' | 'llm-selected'>('round-robin');
 
   // Step 2 state
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -113,6 +123,8 @@ export function RoomWizard() {
         body: JSON.stringify({
           name: roomName.trim(),
           topic: topic.trim() || undefined,
+          turnLimit,
+          speakerStrategy,
         }),
       });
       const room = await roomRes.json();
@@ -206,6 +218,52 @@ export function RoomWizard() {
               placeholder="e.g. Should we use microservices?"
             />
           </div>
+          {/* Turn limit */}
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+              Turn limit
+            </label>
+            <div className="flex items-center gap-4">
+              <Slider
+                value={[turnLimit]}
+                onValueChange={(vals) => {
+                  const v = Array.isArray(vals) ? vals[0] : vals;
+                  setTurnLimit(v as number);
+                }}
+                min={5}
+                max={100}
+                step={5}
+                className="flex-1"
+              />
+              <span className="text-sm font-medium tabular-nums w-12 text-right">
+                {turnLimit}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Maximum number of agent turns per conversation (5-100)
+            </p>
+          </div>
+          {/* Speaker strategy */}
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+              Speaker selection
+            </label>
+            <Select
+              value={speakerStrategy}
+              onValueChange={(val: string | null) => val && setSpeakerStrategy(val as 'round-robin' | 'llm-selected')}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="round-robin">Round-Robin</SelectItem>
+                <SelectItem value="llm-selected">LLM-Selected</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Round-robin cycles through agents in order. LLM-selected uses AI to pick the next speaker.
+            </p>
+          </div>
           <Button onClick={handleStep1Next}>Next</Button>
         </div>
       )}
@@ -296,6 +354,21 @@ export function RoomWizard() {
               {topic && (
                 <p className="text-xs text-muted-foreground mt-0.5">{topic}</p>
               )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                Settings
+              </p>
+              <p className="text-sm">
+                <span className="text-muted-foreground">Turn limit:</span>{' '}
+                <span className="font-medium">{turnLimit}</span>
+              </p>
+              <p className="text-sm mt-0.5">
+                <span className="text-muted-foreground">Speaker:</span>{' '}
+                <span className="font-medium">
+                  {speakerStrategy === 'round-robin' ? 'Round-Robin' : 'LLM-Selected'}
+                </span>
+              </p>
             </div>
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
