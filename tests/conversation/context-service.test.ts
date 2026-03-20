@@ -267,3 +267,178 @@ describe('ContextService.detectRepetition', () => {
     expect(result).toBe(false);
   });
 });
+
+describe('ContextService.detectConvergence', () => {
+  // Shared content for similar messages (high cross-agent Jaccard)
+  const similarContent = [
+    'machine learning algorithms improve prediction accuracy through iterative training',
+    'machine learning algorithms enhance prediction accuracy using iterative training methods',
+    'learning algorithms improve accuracy prediction through iterative machine training process',
+    'machine learning improves prediction accuracy through algorithms and iterative training',
+    'algorithms for machine learning improve prediction accuracy with iterative training cycles',
+    'machine learning prediction accuracy improves through iterative algorithm training steps',
+    'iterative training machine learning algorithms significantly improve prediction accuracy results',
+    'machine learning uses iterative training algorithms that improve prediction accuracy greatly',
+  ];
+
+  it('Test 1 (AND logic true): returns true when agreement phrase AND cross-agent Jaccard >= 0.35 are present', async () => {
+    // Insert 8 messages alternating between agentId and otherAgentId with similar content
+    for (let i = 0; i < 8; i++) {
+      const agId = i % 2 === 0 ? agentId : otherAgentId;
+      let content = similarContent[i];
+      // Add agreement phrase in message from second agent at index 7
+      if (i === 7) {
+        content = 'i completely agree that ' + content;
+      }
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: agId,
+        role: 'agent',
+        content,
+        createdAt: new Date((i + 1) * 1000),
+      });
+    }
+
+    const result = await ContextService.detectConvergence(db, roomId, 5);
+    expect(result).toBe(true);
+  });
+
+  it('Test 2 (phrase only): returns false when agreement phrase present but Jaccard < 0.35', async () => {
+    // Agent A talks about cooking, Agent B talks about quantum physics — entirely disjoint content
+    const cookingMsgs = [
+      'bake the bread flour butter eggs sugar yeast oven temperature',
+      'sauté onions garlic olive oil salt pepper herbs kitchen',
+      'boil pasta water sauce tomato basil mozzarella cheese recipe',
+      'grill chicken marinade lemon thyme rosemary barbecue outdoor',
+    ];
+    const physicsMsgs = [
+      'quantum entanglement superposition photon electron particle wave',
+      'relativity spacetime curvature gravity black hole singularity',
+      'i agree with your approach nuclear fusion plasma reactor tokamak',
+      'uncertainty principle heisenberg wave function collapse measurement',
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: agentId,
+        role: 'agent',
+        content: cookingMsgs[i],
+        createdAt: new Date((i * 2 + 1) * 1000),
+      });
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: otherAgentId,
+        role: 'agent',
+        content: physicsMsgs[i],
+        createdAt: new Date((i * 2 + 2) * 1000),
+      });
+    }
+
+    const result = await ContextService.detectConvergence(db, roomId, 5);
+    expect(result).toBe(false);
+  });
+
+  it('Test 3 (similarity only): returns false when cross-agent Jaccard >= 0.35 but no agreement phrase', async () => {
+    // Both agents discuss neural networks (high similarity) but no agreement phrases used
+    const neuralContent = [
+      'neural networks classify images using convolutional layers deep learning',
+      'convolutional neural networks deep learning image classification layers',
+      'deep neural networks for image classification using convolutional architecture',
+      'image classification neural network convolutional layers deep learning model',
+      'convolutional deep neural networks classify images learning representation',
+      'neural network image classification deep convolutional learning features',
+      'deep learning neural networks convolutional layers image classification task',
+      'neural networks deep learning convolutional image classification performance',
+    ];
+
+    for (let i = 0; i < 8; i++) {
+      const agId = i % 2 === 0 ? agentId : otherAgentId;
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: agId,
+        role: 'agent',
+        content: neuralContent[i],
+        createdAt: new Date((i + 1) * 1000),
+      });
+    }
+
+    const result = await ContextService.detectConvergence(db, roomId, 5);
+    expect(result).toBe(false);
+  });
+
+  it('Test 4 (single agent): returns false when all messages from same roomAgentId', async () => {
+    // Insert 8 messages all from agentId (single agent scenario)
+    for (let i = 0; i < 8; i++) {
+      let content = similarContent[i];
+      if (i === 7) {
+        content = 'i completely agree that ' + content;
+      }
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: agentId,
+        role: 'agent',
+        content,
+        createdAt: new Date((i + 1) * 1000),
+      });
+    }
+
+    const result = await ContextService.detectConvergence(db, roomId, 5);
+    expect(result).toBe(false);
+  });
+
+  it('Test 5 (turn guard at 4): returns false even with valid convergence conditions at turnCount=4', async () => {
+    // Same setup as Test 1 but turnCount=4 (below minimum)
+    for (let i = 0; i < 8; i++) {
+      const agId = i % 2 === 0 ? agentId : otherAgentId;
+      let content = similarContent[i];
+      if (i === 7) {
+        content = 'i completely agree that ' + content;
+      }
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: agId,
+        role: 'agent',
+        content,
+        createdAt: new Date((i + 1) * 1000),
+      });
+    }
+
+    const result = await ContextService.detectConvergence(db, roomId, 4);
+    expect(result).toBe(false);
+  });
+
+  it('Test 6 (turn guard boundary at 5): returns true with valid conditions at turnCount=5', async () => {
+    // Same setup as Test 1 — confirms turnCount=5 is the exact boundary
+    for (let i = 0; i < 8; i++) {
+      const agId = i % 2 === 0 ? agentId : otherAgentId;
+      let content = similarContent[i];
+      if (i === 7) {
+        content = 'i completely agree that ' + content;
+      }
+      await insertMessage(db, {
+        roomId,
+        roomAgentId: agId,
+        role: 'agent',
+        content,
+        createdAt: new Date((i + 1) * 1000),
+      });
+    }
+
+    const result = await ContextService.detectConvergence(db, roomId, 5);
+    expect(result).toBe(true);
+  });
+
+  it('Test 7 (insufficient messages): returns false with only 1 message in room', async () => {
+    await insertMessage(db, {
+      roomId,
+      roomAgentId: agentId,
+      role: 'agent',
+      content: 'i completely agree machine learning algorithms improve prediction accuracy',
+      createdAt: new Date(1000),
+    });
+
+    const result = await ContextService.detectConvergence(db, roomId, 5);
+    expect(result).toBe(false);
+  });
+});
