@@ -47,6 +47,49 @@
 
 ---
 
+## Milestone: v1.1 — Conversation Quality & Polish
+
+**Shipped:** 2026-03-21
+**Phases:** 5 | **Plans:** 11
+
+### What Was Built
+- Anti-sycophancy prompt injection and topic-lock reminders for conversation quality
+- Real-time estimated cost display per room using llm-info static pricing
+- Convergence detection: AND-logic (agreement phrases + Jaccard ≥ 0.35) with auto-pause
+- Parallel first round: all agents form independent views before seeing peers (buffer-then-emit)
+- Tech debt cleanup: orphaned ConversationPanel.tsx deleted, test type errors fixed, room detail over-fetching narrowed
+
+### What Worked
+- Phase dependency ordering (7 → 9): anti-sycophancy prompts produce the explicit agreement language that convergence detector relies on — this was planned upfront in research
+- TDD throughout all phases — every feature started with tests, zero regressions
+- llm-info dependency for cost estimation avoided building a pricing database from scratch
+- Buffer-then-emit pattern for parallel round was simpler and cleaner than streaming multiple agents simultaneously
+- All v1.0 tech debt was resolved, leaving a clean codebase for v1.2
+
+### What Was Inefficient
+- SUMMARY.md `one_liner` field still returns null from summary-extract — same issue as v1.0
+- ROADMAP.md plan checkboxes still show `[ ]` for completed plans — CLI doesn't update these (carried over from v1.0)
+- Phase 8 plan 02 took 20min (longest) due to wiring cost through SSE → chatStore → ChatHeader — multiple integration points
+
+### Patterns Established
+- Discriminated union types for result objects (CostResult: known | unknown | local)
+- AND-logic for detection algorithms (both conditions required, neither alone sufficient)
+- Promise.all for independent prep, Promise.allSettled for fault-tolerant execution
+- System prompt injection pattern: ContextService.buildContext handles all injection (anti-sycophancy, topic-lock)
+
+### Key Lessons
+1. **Research phase dependencies upfront** — Phase 7→9 dependency was identified during research, preventing a painful late discovery
+2. **Static data > API calls for personal tools** — llm-info pricing table avoids external API latency and failure modes
+3. **Buffer-then-emit > streaming for parallel work** — simpler code, cleaner UX, easier abort handling
+4. **Resolve tech debt in the same milestone that creates it** — v1.0 tech debt was cleanly resolved in v1.1 Phase 11
+
+### Cost Observations
+- Model mix: primarily sonnet for execution, opus for planning
+- Sessions: ~4 sessions across 2 days
+- Notable: 11 plans completed in 2 days — consistent velocity with v1.0
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -54,14 +97,18 @@
 | Milestone | Phases | Plans | Key Change |
 |-----------|--------|-------|------------|
 | v1.0 | 6 | 16 | Initial process — discovered need for inline verification |
+| v1.1 | 5 | 11 | Research-driven phase ordering, consistent TDD, tech debt cleanup |
 
 ### Cumulative Quality
 
 | Milestone | Tests | Requirements | Verified |
 |-----------|-------|-------------|----------|
 | v1.0 | 121 | 21/21 | 6/6 phases |
+| v1.1 | 121+ | 15/15 | 5/5 phases |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. Bottom-up build order prevents rework — validate in v2
-2. Milestone audits catch gaps that phase-level verification misses — validate in v2
+1. **Bottom-up build order prevents rework** — ✓ Confirmed in v1.1 (Phase 7→9 dependency planned upfront)
+2. **Milestone audits catch gaps** — skipped audit in v1.1 (100% requirements checked), will validate in v2
+3. **TDD prevents regressions** — ✓ Confirmed in both milestones, zero regressions across 27 plans
+4. **Resolve tech debt in same milestone** — ✓ Confirmed in v1.1 (Phase 11 cleaned up v1.0 debt)

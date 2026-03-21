@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A personal web application where AI agents (powered by Claude, GPT, Gemini, OpenRouter, and Ollama) converse with each other in topic-based rooms. The user observes conversations streaming in real-time, participates by typing messages, and controls agent behavior (start/pause/stop). Built with Next.js 16, Drizzle SQLite, Zustand, and Tailwind v4.
+A personal web application where AI agents (powered by Claude, GPT, Gemini, OpenRouter, and Ollama) converse with each other in topic-based rooms. The user observes conversations streaming in real-time, participates by typing messages, and controls agent behavior (start/pause/stop). Conversations feature anti-sycophancy prompting, convergence detection, cost estimation, and parallel first rounds. Built with Next.js 16, Drizzle SQLite, Zustand, and Tailwind v4.
 
 ## Core Value
 
@@ -31,25 +31,15 @@ Agents must be able to have meaningful conversations with each other that produc
 - ✓ Round-robin and LLM-selected speaker strategies — v1.0
 - ✓ Room configuration UI (turn limit slider, speaker strategy select) — v1.0
 - ✓ Edit room settings for existing rooms — v1.0
+- ✓ Anti-sycophancy prompts and topic-lock injection for conversation quality — v1.1
+- ✓ Real-time estimated cost display per room (est. prefix, "local" for Ollama, "---" for unknown) — v1.1
+- ✓ Convergence detection with auto-pause when agents reach consensus — v1.1
+- ✓ Parallel first round (all agents respond independently before seeing peers) — v1.1
+- ✓ Tech debt cleanup: dead code removed, type errors fixed, over-fetching eliminated — v1.1
 
 ### Active
 
-- ✓ Quality conversations that surface insights and solve problems — Validated in Phase 7: Conversation Quality
-- ✓ Cost estimation display per room — Validated in Phase 8: Cost Estimation
-- ✓ Independent parallel first round (agents respond before seeing each other) — Validated in Phase 10: Parallel First Round
-- ✓ Convergence detection (auto-pause when agents reach consensus) — Validated in Phase 9: Convergence Detection
-- ✓ Clean up tech debt (orphaned files, type errors, over-fetching) — Validated in Phase 11: Tech Debt Cleanup
-
-## Current Milestone: v1.1 Conversation Quality & Polish
-
-**Goal:** Improve conversation quality, add cost visibility, enable smarter conversation flow (parallel first round + convergence detection), and clean up tech debt from v1.0.
-
-**Target features:**
-- Quality conversations with better prompting and insight surfacing
-- Cost estimation per room based on model pricing
-- Independent parallel first round for richer initial responses
-- Convergence detection to auto-stop when agents agree
-- Tech debt cleanup (dead code, type errors, over-fetching)
+(No active requirements — planning next milestone)
 
 ### Out of Scope
 
@@ -59,15 +49,17 @@ Agents must be able to have meaningful conversations with each other that produc
 - Agent tool use / code execution — conversation-focused first
 - Agent-driven web search (live RAG) — multiplies latency/cost
 - Real-time keystroke streaming — SSE token streaming sufficient
+- Dynamic pricing via external API — static table sufficient, API adds latency
+- LLM-as-judge for convergence — doubles API cost, Jaccard + phrases sufficient
+- Streaming parallel first round — buffer-then-display is cleaner UX
+- Per-agent cost breakdown — marginal value over room total
 
 ## Context
 
-Shipped v1.0 with 8,359 LOC TypeScript across 6 phases in 2 days.
-Tech stack: Next.js 16, Vercel AI SDK v6, Drizzle ORM + SQLite (WAL), Zustand, Tailwind v4, shadcn/ui (Base UI).
-121 tests passing across 14 test files. 12/12 UAT tests passed.
-All 21 v1 requirements satisfied with full traceability.
-
-Known tech debt resolved in Phase 11: orphaned ConversationPanel.tsx deleted, test file type errors fixed (`tsc --noEmit` clean), over-fetching in room detail endpoint eliminated. Cost estimation shipped in Phase 8.
+Shipped v1.1 with 5,942 LOC TypeScript across 5 phases (11 plans) in 2 days.
+Tech stack: Next.js 16, Vercel AI SDK v6, Drizzle ORM + SQLite (WAL), Zustand, Tailwind v4, shadcn/ui (Base UI), llm-info.
+Total codebase: 11 phases across 2 milestones, 27 plans completed.
+All v1.0 tech debt resolved in v1.1.
 
 ## Constraints
 
@@ -89,7 +81,11 @@ Known tech debt resolved in Phase 11: orphaned ConversationPanel.tsx deleted, te
 | Zustand for client state | Lightweight, no boilerplate vs Redux | ✓ Good — chatStore handles complex streaming state well |
 | Transient summary (not persisted) | Summary is cheap to regenerate, avoids DB schema change | ✓ Good — simple, works via URL param for export |
 | window.location.reload for edit save | Simpler than prop threading for infrequent action | ⚠️ Revisit — could use router.refresh() |
-| Token counts only (no cost) | Cost requires dynamic pricing per model/provider | ✓ Resolved — Phase 8 added cost estimation via llm-info |
+| llm-info for cost estimation | Static pricing, no external API calls | ✓ Good — fast, offline-capable, covers major models |
+| AND-logic convergence detection | Phrases + Jaccard ≥ 0.35, min 6 turns | ✓ Good — no false positives on early pleasantries |
+| Buffer-then-emit parallel round | Promise.all contexts, Promise.allSettled LLM calls | ✓ Good — structural isolation, clean abort handling |
+| Anti-sycophancy prompt injection | System injects counter-agreement prompts from round 2 | ✓ Good — agents maintain distinct stances |
+| Topic-lock every 5 turns | Redirects drift back to room topic | ✓ Good — keeps conversations focused |
 
 ---
-*Last updated: 2026-03-21 after Phase 11 (Tech Debt Cleanup) complete — all v1.1 milestone phases complete*
+*Last updated: 2026-03-21 after v1.1 milestone*
