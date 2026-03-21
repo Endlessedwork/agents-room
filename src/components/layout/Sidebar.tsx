@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Settings, Users, Plus } from 'lucide-react';
+import { KeyRound, Users, Plus } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,9 +57,9 @@ export function Sidebar() {
           <Users size={16} />
           Agents
         </Link>
-        <Link href="/settings" className="flex items-center gap-2 px-3 py-2 rounded text-sm hover:bg-accent transition-colors">
-          <Settings size={16} />
-          Settings
+        <Link href="/providers" className="flex items-center gap-2 px-3 py-2 rounded text-sm hover:bg-accent transition-colors">
+          <KeyRound size={16} />
+          Providers
         </Link>
         <Link href="/rooms/new" className={cn(buttonVariants({ size: 'sm' }), 'mt-2 w-full justify-center')}>
           <Plus size={16} className="mr-1" />
