@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Agent Management
 status: unknown
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-03-21T16:10:18.244Z"
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-03-21T16:10:45.961Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -48,6 +48,7 @@ Plan: 1 of 3
 | Phase 12 P02 | 8 | 1 tasks | 2 files |
 | Phase 13-agent-editing P01 | 3 | 1 tasks | 3 files |
 | Phase 14-providers-page-model-picker P01 | 92 | 2 tasks | 3 files |
+| Phase 14-providers-page-model-picker P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,7 @@ Key v1.2 decisions to carry forward:
 - [Phase 12]: line-clamp-3 used for notes on AgentCard (vs line-clamp-2 for promptRole) for more visible note text
 - [Phase 13-agent-editing]: AgentForm dual-mode via initialData prop; Drizzle text() cast as unknown as Agent for provider union type; biome.json schema mismatch is pre-existing out-of-scope issue
 - [Phase 14-01]: Settings page replaced with server component redirect to /providers; Sidebar uses KeyRound icon linking /providers
+- [Phase 14-02]: Anthropic adapter extracts both vision and thinking capabilities; OpenAI filter uses gpt-/o-series regex; OpenRouter context length badge at >=100k threshold; Ollama host normalization strips /api suffix
 
 ### Pending Todos
 
@@ -82,6 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T16:10:18.241Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-03-21T16:10:45.958Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None

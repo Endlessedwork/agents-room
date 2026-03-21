@@ -129,5 +129,5 @@ Plans:
 | 11. Tech Debt Cleanup | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 12. Agent Notes + Store Foundation | 2/2 | Complete    | 2026-03-21 | - |
 | 13. Agent Editing | 1/1 | Complete    | 2026-03-21 | - |
-| 14. Providers Page + Model Picker | 1/3 | In Progress|  | - |
+| 14. Providers Page + Model Picker | 2/3 | In Progress|  | - |
 | 15. Presets CRUD | v1.2 | 0/2 | Not started | - |
