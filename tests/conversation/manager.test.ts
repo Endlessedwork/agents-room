@@ -80,7 +80,7 @@ function makeMockStream(yields: string[] = ['mock ', 'response']) {
       }
     })(),
     usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-  };
+  } as unknown as ReturnType<typeof streamLLM>;
 }
 
 beforeEach(async () => {
@@ -167,7 +167,7 @@ describe('ConversationManager', () => {
             yield 'response';
           })(),
           usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-        };
+        } as unknown as ReturnType<typeof streamLLM>;
       }
       return makeMockStream();
     });
@@ -202,7 +202,7 @@ describe('ConversationManager', () => {
           yield 'never reached';
         })(),
         usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-      };
+      } as unknown as ReturnType<typeof streamLLM>;
     });
 
     await ConversationManager.start(roomId, db);
@@ -249,7 +249,7 @@ describe('ConversationManager', () => {
           yield 'never'; // unreachable — satisfies generator type
         })(),
         usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
-      };
+      } as unknown as ReturnType<typeof streamLLM>;
     });
 
     await ConversationManager.start(roomId, db);
@@ -271,7 +271,7 @@ describe('ConversationManager', () => {
           yield 'never'; // unreachable
         })(),
         usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
-      };
+      } as unknown as ReturnType<typeof streamLLM>;
     });
 
     await ConversationManager.start(roomId, db);
@@ -313,7 +313,7 @@ describe('ConversationManager', () => {
         yield base;
       })(),
       usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-    }));
+    } as unknown as ReturnType<typeof streamLLM>));
 
     await ConversationManager.start(roomId, db);
 
@@ -407,7 +407,7 @@ describe('ConversationManager', () => {
           yield content;
         })(),
         usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-      };
+      } as unknown as ReturnType<typeof streamLLM>;
     });
 
     await ConversationManager.resume(roomId, db);
@@ -458,7 +458,7 @@ describe('parallel first round', () => {
     const buildContextSpy = vi
       .spyOn(ContextService, 'buildContext')
       .mockImplementation(async (db, roomId, agent, turnCount) => {
-        streamCallOrder.push(`buildContext:${agent.name}`);
+        streamCallOrder.push(`buildContext:${(agent as any).name}`);
         return originalBuildContext(db, roomId, agent, turnCount);
       });
 
@@ -516,7 +516,7 @@ describe('parallel first round', () => {
           yield `response-from-agent-${idx}`;
         })(),
         usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-      };
+      } as unknown as ReturnType<typeof streamLLM>;
     });
 
     await ConversationManager.start(roomId, db);
@@ -562,7 +562,7 @@ describe('parallel first round', () => {
           yield 'never';
         })(),
         usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
-      };
+      } as unknown as ReturnType<typeof streamLLM>;
     });
 
     // Start and abort quickly

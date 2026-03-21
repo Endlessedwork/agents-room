@@ -41,7 +41,7 @@ function makeMockStream(chunks: string[] = ['hello ', 'world']) {
       }
     })(),
     usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
-  };
+  } as unknown as ReturnType<typeof streamLLM>;
 }
 
 /**
@@ -204,7 +204,7 @@ describe('ConversationManager SSE emissions', () => {
         yield 'never';
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
-    }));
+    } as unknown as ReturnType<typeof streamLLM>));
 
     await ConversationManager.start(roomId, db);
     await new Promise((r) => setTimeout(r, 50));
@@ -229,7 +229,7 @@ describe('ConversationManager SSE emissions', () => {
         yield 'never'; // unreachable
       })(),
       usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
-    }));
+    } as unknown as ReturnType<typeof streamLLM>));
 
     await ConversationManager.start(roomId, db);
     await waitForEvent('system');
