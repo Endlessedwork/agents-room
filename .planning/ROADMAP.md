@@ -89,12 +89,12 @@ Plans:
   5. When a provider API is unreachable, the model field falls back to free-text input with no silent failure
   6. Provider connection status (configured / not configured) is shown next to the provider selector in AgentForm
   7. Model capability tags (e.g., vision, large context) appear next to model names when the provider API returns them
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 14-01: providerStore + /providers page — Zustand providerStore; /providers route reusing ProviderCard; Sidebar link; Settings redirect
-- [ ] 14-02: /api/providers/[provider]/models route + model-fetcher — server-side proxy; per-provider adapters; 5s timeout; static fallback
-- [ ] 14-03: Model combobox in AgentForm — replace text input with combobox; loading state; fallback to free-text; provider status indicator; capability tags
+- [ ] 14-01-PLAN.md — /providers page reusing ProviderCard; Settings redirect; Sidebar link update
+- [ ] 14-02-PLAN.md — GET /api/providers/[provider]/models route with per-provider adapters (Anthropic, OpenAI, Google, OpenRouter, Ollama)
+- [ ] 14-03-PLAN.md — ModelCombobox in AgentForm replacing text input; provider status indicator; capability tags; fallback to free-text
 
 ### Phase 15: Presets CRUD
 **Goal**: Users can create, save, edit, and delete reusable agent presets; three system presets are available out of the box
