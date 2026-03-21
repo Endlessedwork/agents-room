@@ -38,6 +38,9 @@ export const rooms = sqliteTable('rooms', {
   })
     .notNull()
     .default('round-robin'),
+  parallelFirstRound: integer('parallel_first_round', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
