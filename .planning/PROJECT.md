@@ -44,7 +44,7 @@ Agents must be able to have meaningful conversations with each other that produc
 **Goal:** Make agents fully manageable — edit, smart model selection, presets, dedicated provider page, and descriptive notes
 
 **Target features:**
-- Agent editing (update any field on existing agents)
+- ✓ Agent editing (update any field on existing agents) — Validated in Phase 13: agent-editing
 - Model picker dropdown (fetch available models from provider)
 - Agent presets with CRUD (pre-made agent configurations)
 - Dedicated Providers page (move from Settings, full CRUD)
@@ -97,4 +97,4 @@ All v1.0 tech debt resolved in v1.1.
 | Topic-lock every 5 turns | Redirects drift back to room topic | ✓ Good — keeps conversations focused |
 
 ---
-*Last updated: 2026-03-21 after v1.2 milestone started*
+*Last updated: 2026-03-21 after Phase 13 (agent-editing) completed*
