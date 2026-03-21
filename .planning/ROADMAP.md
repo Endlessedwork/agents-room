@@ -41,7 +41,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 ## Phases
 
-- [ ] **Phase 12: Agent Notes + Store Foundation** - Add notes field to agents table and fix missing updateAgent store action
+- [x] **Phase 12: Agent Notes + Store Foundation** - Add notes field to agents table and fix missing updateAgent store action (completed 2026-03-21)
 - [ ] **Phase 13: Agent Editing** - Dual-mode AgentForm enables editing any field on an existing agent
 - [ ] **Phase 14: Providers Page + Model Picker** - Dedicated /providers page and live model dropdown in AgentForm
 - [ ] **Phase 15: Presets CRUD** - Create, save, edit, and delete agent presets with three seeded system presets
@@ -128,7 +128,7 @@ Plans:
 | 9. Convergence Detection | v1.1 | 2/2 | Complete | 2026-03-20 |
 | 10. Parallel First Round | v1.1 | 3/3 | Complete | 2026-03-21 |
 | 11. Tech Debt Cleanup | v1.1 | 2/2 | Complete | 2026-03-21 |
-| 12. Agent Notes + Store Foundation | 1/2 | In Progress|  | - |
+| 12. Agent Notes + Store Foundation | 2/2 | Complete   | 2026-03-21 | - |
 | 13. Agent Editing | v1.2 | 0/2 | Not started | - |
 | 14. Providers Page + Model Picker | v1.2 | 0/3 | Not started | - |
 | 15. Presets CRUD | v1.2 | 0/2 | Not started | - |

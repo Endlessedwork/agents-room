@@ -36,7 +36,7 @@ Requirements for Agent Management milestone. Each maps to roadmap phases.
 ### Agent Notes
 
 - [x] **NOTE-01**: User can add/edit notes on any agent to describe purpose and strengths
-- [ ] **NOTE-02**: Notes visible on agent card in the library view
+- [x] **NOTE-02**: Notes visible on agent card in the library view
 
 ## Future Requirements
 
@@ -79,7 +79,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROV-01 | Phase 14 | Pending |
 | PROV-02 | Phase 14 | Pending |
 | NOTE-01 | Phase 12 | Complete |
-| NOTE-02 | Phase 12 | Pending |
+| NOTE-02 | Phase 12 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 16 total
