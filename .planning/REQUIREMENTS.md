@@ -24,7 +24,7 @@ Requirements for Agent Management milestone. Each maps to roadmap phases.
 ### Agent Presets
 
 - [x] **PRST-01**: User can create a new preset with agent configuration fields
-- [ ] **PRST-02**: User can save an existing agent as a preset
+- [x] **PRST-02**: User can save an existing agent as a preset
 - [x] **PRST-03**: User can edit and delete presets
 - [x] **PRST-04**: System presets (Devil's Advocate, Code Reviewer, Researcher) seeded into DB
 
@@ -73,7 +73,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MODL-04 | Phase 14 | Complete |
 | MODL-05 | Phase 14 | Complete |
 | PRST-01 | Phase 15 | Complete |
-| PRST-02 | Phase 15 | Pending |
+| PRST-02 | Phase 15 | Complete |
 | PRST-03 | Phase 15 | Complete |
 | PRST-04 | Phase 15 | Complete |
 | PROV-01 | Phase 14 | Complete |

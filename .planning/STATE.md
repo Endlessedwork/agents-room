@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Agent Management
 status: unknown
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-21T17:25:09.500Z"
+stopped_at: "Checkpoint: Task 3 human-verify in 15-02-PLAN.md"
+last_updated: "2026-03-21T17:31:03.354Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -51,6 +51,7 @@ Plan: 1 of 2
 | Phase 14-providers-page-model-picker P02 | 2 | 1 tasks | 1 files |
 | Phase 14-providers-page-model-picker P03 | 2 | 2 tasks | 2 files |
 | Phase 15-presets-crud P01 | 4 | 2 tasks | 10 files |
+| Phase 15-presets-crud P02 | 3 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Key v1.2 decisions to carry forward:
 - [Phase 14-03]: providerConfigured computed at render time from providerStatuses map — no separate derived state
 - [Phase 15-01]: isSystem excluded from Zod schemas — server always controls this field, clients cannot override
 - [Phase 15-01]: Stable preset IDs (devils-advocate, code-reviewer, researcher) for idempotent seeding with onConflictDoNothing
+- [Phase 15-02]: PresetForm uses plain Input for model field instead of ModelCombobox — presets are templates with free-text model strings
+- [Phase 15-02]: presets/[presetId]/edit server component redirects if isSystem; casts DB row as unknown as Preset for client form
+- [Phase 15-02]: agents/new/page.tsx queries DB for preset by ID instead of static AGENT_PRESETS.find
 
 ### Pending Todos
 
@@ -91,6 +95,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T17:25:09.497Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-03-21T17:31:03.351Z
+Stopped at: Checkpoint: Task 3 human-verify in 15-02-PLAN.md
 Resume file: None
