@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Agent Management
 status: unknown
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-03-21T16:18:53.732Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-21T17:25:09.500Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Agents must have meaningful conversations that produce genuinely useful insights — the room is only valuable if agent collaboration yields better outcomes than talking to one agent alone
-**Current focus:** Phase 14 — providers-page-model-picker
+**Current focus:** Phase 15 — presets-crud
 
 ## Current Position
 
-Phase: 14 (providers-page-model-picker) — EXECUTING
-Plan: 1 of 3
+Phase: 15 (presets-crud) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: 1 of 3
 | Phase 14-providers-page-model-picker P01 | 92 | 2 tasks | 3 files |
 | Phase 14-providers-page-model-picker P02 | 2 | 1 tasks | 1 files |
 | Phase 14-providers-page-model-picker P03 | 2 | 2 tasks | 2 files |
+| Phase 15-presets-crud P01 | 4 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Key v1.2 decisions to carry forward:
 - [Phase 14-03]: Double-cast (m as unknown as ModelInfo) for @base-ui/react Combobox generic type compatibility
 - [Phase 14-03]: getStatusConfig duplicated inline in AgentForm — acceptable for 12-line helper, avoids new shared util file
 - [Phase 14-03]: providerConfigured computed at render time from providerStatuses map — no separate derived state
+- [Phase 15-01]: isSystem excluded from Zod schemas — server always controls this field, clients cannot override
+- [Phase 15-01]: Stable preset IDs (devils-advocate, code-reviewer, researcher) for idempotent seeding with onConflictDoNothing
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T16:15:33.505Z
-Stopped at: Completed 14-03-PLAN.md
+Last session: 2026-03-21T17:25:09.497Z
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
