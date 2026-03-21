@@ -38,7 +38,7 @@ Agents must be able to have meaningful conversations with each other that produc
 - ✓ Cost estimation display per room — Validated in Phase 8: Cost Estimation
 - ✓ Independent parallel first round (agents respond before seeing each other) — Validated in Phase 10: Parallel First Round
 - ✓ Convergence detection (auto-pause when agents reach consensus) — Validated in Phase 9: Convergence Detection
-- [ ] Clean up tech debt (orphaned files, type errors, over-fetching)
+- ✓ Clean up tech debt (orphaned files, type errors, over-fetching) — Validated in Phase 11: Tech Debt Cleanup
 
 ## Current Milestone: v1.1 Conversation Quality & Polish
 
@@ -67,7 +67,7 @@ Tech stack: Next.js 16, Vercel AI SDK v6, Drizzle ORM + SQLite (WAL), Zustand, T
 121 tests passing across 14 test files. 12/12 UAT tests passed.
 All 21 v1 requirements satisfied with full traceability.
 
-Known tech debt: orphaned ConversationPanel.tsx, test file type errors, over-fetching in room detail endpoint, no cost estimation.
+Known tech debt resolved in Phase 11: orphaned ConversationPanel.tsx deleted, test file type errors fixed (`tsc --noEmit` clean), over-fetching in room detail endpoint eliminated. Cost estimation shipped in Phase 8.
 
 ## Constraints
 
@@ -92,4 +92,4 @@ Known tech debt: orphaned ConversationPanel.tsx, test file type errors, over-fet
 | Token counts only (no cost) | Cost requires dynamic pricing per model/provider | ✓ Resolved — Phase 8 added cost estimation via llm-info |
 
 ---
-*Last updated: 2026-03-21 after Phase 10 (Parallel First Round) complete*
+*Last updated: 2026-03-21 after Phase 11 (Tech Debt Cleanup) complete — all v1.1 milestone phases complete*
