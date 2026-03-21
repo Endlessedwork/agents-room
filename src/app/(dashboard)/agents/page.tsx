@@ -7,14 +7,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useAgentStore } from '@/stores/agentStore';
 import { AgentCard } from '@/components/agents/AgentCard';
-import { AGENT_PRESETS } from '@/components/agents/AgentPresets';
+import { usePresetStore } from '@/stores/presetStore';
 
 export default function AgentsPage() {
   const { agents, fetchAgents } = useAgentStore();
+  const { presets, fetchPresets } = usePresetStore();
 
   useEffect(() => {
     fetchAgents();
-  }, [fetchAgents]);
+    fetchPresets();
+  }, [fetchAgents, fetchPresets]);
 
   function handleDelete(id: string) {
     useAgentStore.setState((s) => ({
@@ -37,7 +39,7 @@ export default function AgentsPage() {
           Preset Templates
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {AGENT_PRESETS.map((preset) => (
+          {presets.map((preset) => (
             <Card key={preset.id} className="relative">
               <CardContent className="pt-4">
                 <div className="flex items-center gap-2 mb-2">

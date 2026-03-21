@@ -86,6 +86,7 @@ export function AgentForm({ preset, initialData }: AgentFormProps) {
   const [model, setModel] = useState(initialData?.model ?? preset?.model ?? DEFAULT_MODELS['anthropic']);
   const [temperature, setTemperature] = useState(initialData?.temperature ?? preset?.temperature ?? 0.7);
   const [saving, setSaving] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderStatus>>({});
 
@@ -159,6 +160,36 @@ export function AgentForm({ preset, initialData }: AgentFormProps) {
       router.push('/agents');
     } catch {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveAsPreset() {
+    setSavingPreset(true);
+    try {
+      const presetPayload = {
+        name: name.trim(),
+        avatarColor,
+        avatarIcon,
+        promptRole: promptRole.trim(),
+        promptPersonality: promptPersonality.trim() || null,
+        promptRules: promptRules.trim() || null,
+        promptConstraints: promptConstraints.trim() || null,
+        provider,
+        model: model.trim(),
+        temperature,
+      };
+      const res = await fetch('/api/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(presetPayload),
+      });
+      if (res.ok) {
+        router.push('/presets');
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSavingPreset(false);
     }
   }
 
@@ -380,9 +411,16 @@ export function AgentForm({ preset, initialData }: AgentFormProps) {
         </div>
       </div>
 
-      <Button type="submit" disabled={saving}>
-        {saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Agent'}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={saving}>
+          {saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Agent'}
+        </Button>
+        {isEditMode && (
+          <Button type="button" variant="outline" onClick={handleSaveAsPreset} disabled={savingPreset}>
+            {savingPreset ? 'Saving...' : 'Save as Preset'}
+          </Button>
+        )}
+      </div>
     </form>
   );
 }
