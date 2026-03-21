@@ -106,11 +106,11 @@ Plans:
   3. User can save an existing agent's current configuration as a preset from the agent edit form
   4. User can edit the name and configuration fields of any user-created preset
   5. User can delete any user-created preset; system presets cannot be deleted
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: Presets schema + API — new presets DB table; seed 3 system presets; GET/POST /api/presets; PUT/DELETE /api/presets/[id]
-- [ ] 15-02: Presets management UI — preset list page or panel; create/edit/delete UI; "Save as preset" action on agent edit form; apply-preset confirmation dialog
+- [ ] 15-01-PLAN.md — Presets DB table + migration + seed 3 system presets + Zod schemas + API routes (GET/POST/PUT/DELETE) + presetStore + tests
+- [ ] 15-02-PLAN.md — Presets list page + PresetCard + PresetForm + create/edit routes + sidebar link + migrate agents page to DB presets + "Save as Preset" in AgentForm
 
 ## Progress
 
