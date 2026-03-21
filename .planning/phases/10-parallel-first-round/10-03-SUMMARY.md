@@ -25,10 +25,11 @@ decisions:
   - "parallelRound state is null (inactive) or {active, agentCount} (during parallel round); endParallelRound sets it back to null"
   - "ThinkingBubble suppressed during parallel round via !parallelRound condition; parallel banner uses animate-pulse for visual feedback"
   - "parallelFirstRound typed as optional (?) in ChatView and ChatHeader interfaces to avoid cascade errors"
+requirements-completed: [PARA-01, PARA-03]
 metrics:
   duration: "2min"
   completed: "2026-03-21"
-  tasks_completed: 2
+  tasks_completed: 3
   files_modified: 8
 ---
 
@@ -65,9 +66,10 @@ Wire parallel first round feature through client: chatStore parallelRound state 
 - `npm run build` passes (TypeScript compilation confirms all types are correct)
 - `npm test` passes — 175 tests, 16 files, no regressions
 
-## Checkpoint: Awaiting Human Verification
+### Task 3: Verify parallel first round end-to-end
+**Status:** Human-approved
 
-Task 3 is a `checkpoint:human-verify` requiring end-to-end visual confirmation:
+End-to-end visual verification confirmed:
 - Parallel first round checkbox visible in room creation wizard
 - Checkbox visible and correct in Edit Room dialog
 - "Agents forming independent views..." banner appears during parallel round
