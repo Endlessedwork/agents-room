@@ -28,6 +28,16 @@ describe('createAgentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts notes as optional string', () => {
+    const result = createAgentSchema.safeParse({ ...validAgentData, notes: 'Some notes' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts notes as null', () => {
+    const result = createAgentSchema.safeParse({ ...validAgentData, notes: null });
+    expect(result.success).toBe(true);
+  });
+
   it('uses default temperature of 0.7 when not provided', () => {
     const { temperature: _, ...withoutTemp } = validAgentData;
     const result = createAgentSchema.safeParse(withoutTemp);
@@ -121,6 +131,11 @@ describe('createAgentSchema', () => {
 });
 
 describe('updateAgentSchema', () => {
+  it('accepts partial update with only notes', () => {
+    const result = updateAgentSchema.safeParse({ notes: 'Updated notes' });
+    expect(result.success).toBe(true);
+  });
+
   it('accepts empty object (all fields optional for partial update)', () => {
     const result = updateAgentSchema.safeParse({});
     expect(result.success).toBe(true);

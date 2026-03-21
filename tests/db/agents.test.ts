@@ -48,6 +48,51 @@ describe('agents', () => {
     expect(result!.updatedAt).toBeInstanceOf(Date);
   });
 
+  it('create agent with notes — verify notes persisted', async () => {
+    const id = nanoid();
+
+    await db.insert(agents).values({
+      id,
+      name: 'Noted Agent',
+      avatarColor: '#3B82F6',
+      avatarIcon: 'note',
+      promptRole: 'You are an agent with notes.',
+      provider: 'anthropic',
+      model: 'claude-3-haiku-20240307',
+      temperature: 0.7,
+      notes: 'Test notes about this agent',
+    });
+
+    const result = await db.query.agents.findFirst({
+      where: eq(agents.id, id),
+    });
+
+    expect(result).toBeDefined();
+    expect(result!.notes).toBe('Test notes about this agent');
+  });
+
+  it('create agent without notes — verify notes is null', async () => {
+    const id = nanoid();
+
+    await db.insert(agents).values({
+      id,
+      name: 'No Notes Agent',
+      avatarColor: '#3B82F6',
+      avatarIcon: 'plain',
+      promptRole: 'You are an agent without notes.',
+      provider: 'anthropic',
+      model: 'claude-3-haiku-20240307',
+      temperature: 0.7,
+    });
+
+    const result = await db.query.agents.findFirst({
+      where: eq(agents.id, id),
+    });
+
+    expect(result).toBeDefined();
+    expect(result!.notes).toBeNull();
+  });
+
   it('list agents — insert 2 agents, query all, verify count=2', async () => {
     await db.insert(agents).values([
       {
