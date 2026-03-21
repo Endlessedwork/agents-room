@@ -48,7 +48,7 @@ Agents must be able to have meaningful conversations with each other that produc
 - Model picker dropdown (fetch available models from provider)
 - Agent presets with CRUD (pre-made agent configurations)
 - Dedicated Providers page (move from Settings, full CRUD)
-- Agent notes/comments (describe purpose and strengths)
+- ✓ Agent notes/comments (describe purpose and strengths) — Validated in Phase 12: agent-notes-store-foundation
 
 ### Out of Scope
 
@@ -67,7 +67,7 @@ Agents must be able to have meaningful conversations with each other that produc
 
 Shipped v1.1 with 5,942 LOC TypeScript across 5 phases (11 plans) in 2 days.
 Tech stack: Next.js 16, Vercel AI SDK v6, Drizzle ORM + SQLite (WAL), Zustand, Tailwind v4, shadcn/ui (Base UI), llm-info.
-Total codebase: 11 phases across 2 milestones, 27 plans completed.
+Total codebase: 12 phases across 2 milestones, 29 plans completed.
 All v1.0 tech debt resolved in v1.1.
 
 ## Constraints
