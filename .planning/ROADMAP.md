@@ -53,7 +53,7 @@ Plans:
 **Requirements**: COST-01, COST-02, COST-03
 **Success Criteria** (what must be TRUE):
   1. The room header displays a running estimated cost (e.g., "est. $0.04") that increases after each agent turn completes
-  2. A room using an unrecognized model shows "—" in the cost field, not "$0.00"
+  2. A room using an unrecognized model shows "---" in the cost field, not "$0.00"
   3. Ollama (local) rooms show "local" rather than a dollar figure
   4. Cost figures carry an "est." prefix throughout the UI, never implying false precision
 **Plans:** 2/2 plans complete
@@ -98,7 +98,10 @@ Plans:
   1. `ConversationPanel.tsx` no longer exists in the codebase and `npm run build` passes cleanly
   2. `tsc --noEmit` reports zero errors across all test files with no `as any` casts added to silence them
   3. The room detail API endpoint does not return the full messages relation when no consumer requires it, confirmed by inspecting the response payload
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 11-01-PLAN.md — Delete orphaned ConversationPanel.tsx and narrow room detail endpoint
+- [ ] 11-02-PLAN.md — Fix test file TypeScript errors (AI SDK v6 type drift)
 
 ## Progress
 
@@ -114,4 +117,4 @@ Plans:
 | 8. Cost Estimation | 2/2 | Complete   | 2026-03-20 | - |
 | 9. Convergence Detection | 2/2 | Complete   | 2026-03-20 | - |
 | 10. Parallel First Round | 3/3 | Complete    | 2026-03-21 | - |
-| 11. Tech Debt Cleanup | v1.1 | 0/TBD | Not started | - |
+| 11. Tech Debt Cleanup | v1.1 | 0/2 | Not started | - |
