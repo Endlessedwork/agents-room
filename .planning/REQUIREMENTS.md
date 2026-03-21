@@ -21,7 +21,7 @@ Requirements for v1.1 milestone. Each maps to roadmap phases.
 
 ### Parallel First Round
 
-- [ ] **PARA-01**: User can enable parallel first round per room (config toggle)
+- [x] **PARA-01**: User can enable parallel first round per room (config toggle)
 - [ ] **PARA-02**: All agents respond independently in round 1 without seeing peers
 - [ ] **PARA-03**: Round 1 responses display in correct order after all complete
 
@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONV-01 | Phase 9 | Complete |
 | CONV-02 | Phase 9 | Complete |
 | CONV-03 | Phase 9 | Complete |
-| PARA-01 | Phase 10 | Pending |
+| PARA-01 | Phase 10 | Complete |
 | PARA-02 | Phase 10 | Pending |
 | PARA-03 | Phase 10 | Pending |
 | DEBT-01 | Phase 11 | Pending |

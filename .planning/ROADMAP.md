@@ -84,7 +84,7 @@ Plans:
   2. When enabled, round 1 messages from all agents appear in the chat after all agents have responded, in agent order, not arrival order
   3. During the parallel round, the UI shows a distinct "Agents forming independent views..." indicator rather than a per-agent thinking dot
   4. If the conversation is stopped mid-parallel-round, no orphaned partial messages remain in the chat
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
 - [ ] 10-01-PLAN.md — Schema + validation: add parallelFirstRound column and Zod fields
 - [ ] 10-02-PLAN.md — Server engine: runParallelRound in ConversationManager with TDD
@@ -113,5 +113,5 @@ Plans:
 | 7. Conversation Quality | 2/2 | Complete   | 2026-03-20 | - |
 | 8. Cost Estimation | 2/2 | Complete   | 2026-03-20 | - |
 | 9. Convergence Detection | 2/2 | Complete   | 2026-03-20 | - |
-| 10. Parallel First Round | v1.1 | 0/3 | Not started | - |
+| 10. Parallel First Round | 1/3 | In Progress|  | - |
 | 11. Tech Debt Cleanup | v1.1 | 0/TBD | Not started | - |
