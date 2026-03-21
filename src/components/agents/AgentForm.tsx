@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/select';
 import { type AgentPreset } from './AgentPresets';
 import { useAgentStore, type Agent } from '@/stores/agentStore';
+import { ModelCombobox } from './ModelCombobox';
+import type { ProviderStatus } from '@/components/settings/ProviderCard';
 
 const AVATAR_COLORS = [
   '#EF4444', '#F97316', '#EAB308', '#22C55E',
@@ -49,6 +51,20 @@ const DEFAULT_MODELS: Record<string, string> = {
 
 type Provider = 'anthropic' | 'openai' | 'google' | 'openrouter' | 'ollama';
 
+function getStatusConfig(status: ProviderStatus) {
+  switch (status) {
+    case 'verified':
+      return { dotClass: 'bg-green-500', textClass: 'text-green-500', label: 'Connected' };
+    case 'failed':
+      return { dotClass: 'bg-red-500', textClass: 'text-red-500', label: 'Failed' };
+    case 'configured':
+      return { dotClass: 'bg-yellow-500', textClass: 'text-yellow-500', label: 'Not tested' };
+    case 'unconfigured':
+    default:
+      return { dotClass: 'bg-muted-foreground', textClass: 'text-muted-foreground', label: 'Not configured' };
+  }
+}
+
 interface AgentFormProps {
   preset?: AgentPreset | null;
   initialData?: Agent | null;
@@ -71,6 +87,20 @@ export function AgentForm({ preset, initialData }: AgentFormProps) {
   const [temperature, setTemperature] = useState(initialData?.temperature ?? preset?.temperature ?? 0.7);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderStatus>>({});
+
+  useEffect(() => {
+    fetch('/api/providers')
+      .then((r) => r.json())
+      .then((data: Array<{ provider: string; status: ProviderStatus }>) => {
+        const map: Record<string, ProviderStatus> = {};
+        for (const p of data) {
+          map[p.provider] = p.status;
+        }
+        setProviderStatuses(map);
+      })
+      .catch(() => {});
+  }, []);
 
   // Update model when provider changes (only if not pre-filled from preset)
   function handleProviderChange(val: string | null) {
@@ -289,18 +319,32 @@ export function AgentForm({ preset, initialData }: AgentFormProps) {
         <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
           Provider
         </label>
-        <Select value={provider} onValueChange={handleProviderChange}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="anthropic">Anthropic — Claude</SelectItem>
-            <SelectItem value="openai">OpenAI — GPT</SelectItem>
-            <SelectItem value="google">Google — Gemini</SelectItem>
-            <SelectItem value="openrouter">OpenRouter</SelectItem>
-            <SelectItem value="ollama">Ollama — Local</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={provider} onValueChange={handleProviderChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="anthropic">Anthropic — Claude</SelectItem>
+              <SelectItem value="openai">OpenAI — GPT</SelectItem>
+              <SelectItem value="google">Google — Gemini</SelectItem>
+              <SelectItem value="openrouter">OpenRouter</SelectItem>
+              <SelectItem value="ollama">Ollama — Local</SelectItem>
+            </SelectContent>
+          </Select>
+          {(() => {
+            const currentProviderStatus = providerStatuses[provider] ?? 'unconfigured';
+            const statusCfg = getStatusConfig(currentProviderStatus);
+            return (
+              <>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusCfg.dotClass}`} />
+                <span className={`text-xs whitespace-nowrap ${statusCfg.textClass}`}>
+                  {statusCfg.label}
+                </span>
+              </>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Model */}
@@ -308,10 +352,11 @@ export function AgentForm({ preset, initialData }: AgentFormProps) {
         <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
           Model
         </label>
-        <Input
+        <ModelCombobox
+          provider={provider}
+          providerConfigured={(providerStatuses[provider] ?? 'unconfigured') !== 'unconfigured'}
           value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="e.g. claude-sonnet-4-20250514"
+          onChange={setModel}
         />
       </div>
 
