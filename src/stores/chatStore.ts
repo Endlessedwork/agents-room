@@ -45,6 +45,7 @@ interface ChatStore {
   estimatedCostState: { dollars: number; hasUnknown: boolean; hasLocal: boolean };
   summary: string | null;
   summaryLoading: boolean;
+  parallelRound: { active: boolean; agentCount: number } | null;
 
   // Actions
   loadHistory: (roomId: string) => Promise<void>;
@@ -74,6 +75,8 @@ interface ChatStore {
   setSummary: (text: string) => void;
   clearSummary: () => void;
   setSummaryLoading: (loading: boolean) => void;
+  startParallelRound: (agentCount: number) => void;
+  endParallelRound: () => void;
   reset: () => void;
 }
 
@@ -87,6 +90,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   estimatedCostState: { dollars: 0, hasUnknown: false, hasLocal: false },
   summary: null,
   summaryLoading: false,
+  parallelRound: null,
 
   loadHistory: async (roomId: string) => {
     const res = await fetch(`/api/rooms/${roomId}/messages`);
@@ -275,6 +279,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setSummaryLoading: (loading) => set({ summaryLoading: loading }),
 
+  startParallelRound: (agentCount) => set({ parallelRound: { active: true, agentCount } }),
+  endParallelRound: () => set({ parallelRound: null }),
+
   reset: () => {
     set({
       messages: [],
@@ -286,6 +293,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       estimatedCostState: { dollars: 0, hasUnknown: false, hasLocal: false },
       summary: null,
       summaryLoading: false,
+      parallelRound: null,
     });
   },
 }));

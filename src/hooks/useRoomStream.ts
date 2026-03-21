@@ -11,6 +11,8 @@ export function useRoomStream(roomId: string) {
     addUserMessage,
     setRoomStatus,
     updateTokenTotals,
+    startParallelRound,
+    endParallelRound,
   } = useChatStore();
 
   useEffect(() => {
@@ -42,7 +44,17 @@ export function useRoomStream(roomId: string) {
     es.addEventListener('user-message', (e) => {
       addUserMessage(JSON.parse(e.data));
     });
+    es.addEventListener('parallel:start', (e) => {
+      const { agentCount } = JSON.parse(e.data);
+      startParallelRound(agentCount);
+    });
+    es.addEventListener('parallel:end', () => {
+      endParallelRound();
+    });
+    es.addEventListener('parallel:cancel', () => {
+      endParallelRound();
+    });
 
     return () => es.close();
-  }, [roomId, startTurn, appendToken, completeTurn, cancelTurn, addSystemMessage, addUserMessage, setRoomStatus, updateTokenTotals]);
+  }, [roomId, startTurn, appendToken, completeTurn, cancelTurn, addSystemMessage, addUserMessage, setRoomStatus, updateTokenTotals, startParallelRound, endParallelRound]);
 }
