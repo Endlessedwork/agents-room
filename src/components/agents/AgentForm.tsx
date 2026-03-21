@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { type AgentPreset } from './AgentPresets';
+import { useAgentStore, type Agent } from '@/stores/agentStore';
 
 const AVATAR_COLORS = [
   '#EF4444', '#F97316', '#EAB308', '#22C55E',
@@ -50,22 +51,24 @@ type Provider = 'anthropic' | 'openai' | 'google' | 'openrouter' | 'ollama';
 
 interface AgentFormProps {
   preset?: AgentPreset | null;
+  initialData?: Agent | null;
 }
 
-export function AgentForm({ preset }: AgentFormProps) {
+export function AgentForm({ preset, initialData }: AgentFormProps) {
   const router = useRouter();
+  const isEditMode = Boolean(initialData?.id);
 
-  const [name, setName] = useState(preset?.name ?? '');
-  const [avatarColor, setAvatarColor] = useState(preset?.avatarColor ?? '#3B82F6');
-  const [avatarIcon, setAvatarIcon] = useState(preset?.avatarIcon ?? 'brain');
-  const [promptRole, setPromptRole] = useState(preset?.promptRole ?? '');
-  const [promptPersonality, setPromptPersonality] = useState(preset?.promptPersonality ?? '');
-  const [promptRules, setPromptRules] = useState(preset?.promptRules ?? '');
-  const [promptConstraints, setPromptConstraints] = useState(preset?.promptConstraints ?? '');
-  const [notes, setNotes] = useState('');
-  const [provider, setProvider] = useState<Provider>(preset?.provider ?? 'anthropic');
-  const [model, setModel] = useState(preset?.model ?? DEFAULT_MODELS['anthropic']);
-  const [temperature, setTemperature] = useState(preset?.temperature ?? 0.7);
+  const [name, setName] = useState(initialData?.name ?? preset?.name ?? '');
+  const [avatarColor, setAvatarColor] = useState(initialData?.avatarColor ?? preset?.avatarColor ?? '#3B82F6');
+  const [avatarIcon, setAvatarIcon] = useState(initialData?.avatarIcon ?? preset?.avatarIcon ?? 'brain');
+  const [promptRole, setPromptRole] = useState(initialData?.promptRole ?? preset?.promptRole ?? '');
+  const [promptPersonality, setPromptPersonality] = useState(initialData?.promptPersonality ?? preset?.promptPersonality ?? '');
+  const [promptRules, setPromptRules] = useState(initialData?.promptRules ?? preset?.promptRules ?? '');
+  const [promptConstraints, setPromptConstraints] = useState(initialData?.promptConstraints ?? preset?.promptConstraints ?? '');
+  const [notes, setNotes] = useState(initialData?.notes ?? '');
+  const [provider, setProvider] = useState<Provider>(initialData?.provider ?? preset?.provider ?? 'anthropic');
+  const [model, setModel] = useState(initialData?.model ?? preset?.model ?? DEFAULT_MODELS['anthropic']);
+  const [temperature, setTemperature] = useState(initialData?.temperature ?? preset?.temperature ?? 0.7);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -93,30 +96,37 @@ export function AgentForm({ preset }: AgentFormProps) {
     }
     setErrors({});
     setSaving(true);
+
+    const payload = {
+      name: name.trim(),
+      avatarColor,
+      avatarIcon,
+      promptRole: promptRole.trim(),
+      promptPersonality: promptPersonality.trim() || null,
+      promptRules: promptRules.trim() || null,
+      promptConstraints: promptConstraints.trim() || null,
+      provider,
+      model: model.trim(),
+      temperature,
+      notes: notes.trim() || null,
+      ...(isEditMode ? {} : { presetId: preset?.id ?? null }),
+    };
+
     try {
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          avatarColor,
-          avatarIcon,
-          promptRole: promptRole.trim(),
-          promptPersonality: promptPersonality.trim() || null,
-          promptRules: promptRules.trim() || null,
-          promptConstraints: promptConstraints.trim() || null,
-          provider,
-          model: model.trim(),
-          temperature,
-          presetId: preset?.id ?? null,
-          notes: notes.trim() || null,
-        }),
-      });
-      if (res.ok) {
-        router.push('/agents');
+      if (isEditMode) {
+        await useAgentStore.getState().updateAgent(initialData!.id, payload);
       } else {
-        setSaving(false);
+        const res = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          setSaving(false);
+          return;
+        }
       }
+      router.push('/agents');
     } catch {
       setSaving(false);
     }
@@ -127,6 +137,13 @@ export function AgentForm({ preset }: AgentFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
+      {isEditMode && (
+        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
+          <p className="text-sm text-yellow-700 dark:text-yellow-400">
+            Editing this agent won&apos;t affect rooms already using it.
+          </p>
+        </div>
+      )}
       {/* Name */}
       <div>
         <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
@@ -319,7 +336,7 @@ export function AgentForm({ preset }: AgentFormProps) {
       </div>
 
       <Button type="submit" disabled={saving}>
-        {saving ? 'Saving...' : 'Save Agent'}
+        {saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Agent'}
       </Button>
     </form>
   );

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Brain, Code, BookOpen, Flame, Sparkles, Lightbulb,
   Shield, Eye, Search, Heart, Star, Zap
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -111,6 +113,12 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
             </div>
           </div>
           <div className="flex gap-2 mt-3 justify-end">
+            <Link
+              href={`/agents/${agent.id}/edit`}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              Edit
+            </Link>
             <Button
               variant="destructive"
               size="sm"
