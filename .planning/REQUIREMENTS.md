@@ -9,9 +9,9 @@ Requirements for Agent Management milestone. Each maps to roadmap phases.
 
 ### Agent Editing
 
-- [ ] **EDIT-01**: User can edit any field of an existing agent (name, role, personality, rules, constraints, provider, model, avatar)
-- [ ] **EDIT-02**: Edit form shows copy-on-assign warning: "Editing this agent won't affect rooms already using it"
-- [ ] **EDIT-03**: Agent library updates immediately after save without page reload
+- [x] **EDIT-01**: User can edit any field of an existing agent (name, role, personality, rules, constraints, provider, model, avatar)
+- [x] **EDIT-02**: Edit form shows copy-on-assign warning: "Editing this agent won't affect rooms already using it"
+- [x] **EDIT-03**: Agent library updates immediately after save without page reload
 
 ### Model Selection
 
@@ -64,9 +64,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EDIT-01 | Phase 13 | Pending |
-| EDIT-02 | Phase 13 | Pending |
-| EDIT-03 | Phase 13 | Pending |
+| EDIT-01 | Phase 13 | Complete |
+| EDIT-02 | Phase 13 | Complete |
+| EDIT-03 | Phase 13 | Complete |
 | MODL-01 | Phase 14 | Pending |
 | MODL-02 | Phase 14 | Pending |
 | MODL-03 | Phase 14 | Pending |
