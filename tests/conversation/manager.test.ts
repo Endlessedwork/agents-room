@@ -17,7 +17,13 @@ vi.mock('@/lib/llm/gateway', () => ({
   }),
 }));
 
+// Mock stream-registry to capture SSE events
+vi.mock('@/lib/sse/stream-registry', () => ({
+  emitSSE: vi.fn(),
+}));
+
 import { streamLLM } from '@/lib/llm/gateway';
+import { emitSSE } from '@/lib/sse/stream-registry';
 const mockStreamLLM = vi.mocked(streamLLM);
 
 type TestDb = ReturnType<typeof createTestDb>['db'];
@@ -414,6 +420,224 @@ describe('ConversationManager', () => {
       .from(messages)
       .where(eq(messages.roomId, roomId));
     expect(value).toBe(10);
+  });
+});
+
+describe('parallel first round', () => {
+  let agentId2: string;
+  let agentId3: string;
+
+  beforeEach(async () => {
+    agentId2 = nanoid();
+    agentId3 = nanoid();
+
+    // Insert second room agent (position 1)
+    await db.insert(roomAgents).values({
+      id: agentId2,
+      roomId,
+      name: 'Agent B',
+      avatarColor: '#ffffff',
+      avatarIcon: 'bot',
+      promptRole: 'You are a second assistant.',
+      provider: 'anthropic',
+      model: 'claude-3-5-haiku-20241022',
+      temperature: 0.7,
+      position: 1,
+    });
+
+    vi.mocked(emitSSE).mockClear();
+  });
+
+  it('all contexts built before any LLM call', async () => {
+    // Enable parallel first round
+    await db.update(rooms).set({ parallelFirstRound: true } as any).where(eq(rooms.id, roomId));
+
+    // We need to use raw SQL since Drizzle ORM maps boolean → integer
+    // Actually check if the field exists and update via raw SQLite pragma
+
+    const buildContextSpy = vi.spyOn(ContextService, 'buildContext');
+    const streamCallOrder: string[] = [];
+
+    // Track when buildContext is called
+    buildContextSpy.mockImplementation(async (db, roomId, agent, turnCount) => {
+      streamCallOrder.push(`buildContext:${agent.name}`);
+      // Call through to original
+      buildContextSpy.mockRestore();
+      const result = await ContextService.buildContext(db, roomId, agent, turnCount);
+      buildContextSpy.mockImplementation(async (db, roomId, agent, turnCount) => {
+        streamCallOrder.push(`buildContext:${agent.name}`);
+        return ContextService.buildContext(db, roomId, agent, turnCount);
+      });
+      return result;
+    });
+
+    mockStreamLLM.mockImplementation(() => {
+      streamCallOrder.push('streamLLM');
+      return makeMockStream();
+    });
+
+    // Update room to have parallelFirstRound=true using raw approach
+    // Drizzle maps boolean columns with mode:'boolean', so use the ORM field name
+    await db.update(rooms).set({ parallelFirstRound: true } as any).where(eq(rooms.id, roomId));
+
+    await ConversationManager.start(roomId, db);
+    await waitForMessages(db, roomId, 2);
+    await waitForStatus(db, roomId, 'idle');
+
+    // Both buildContext calls should appear before first streamLLM call
+    const firstStreamIndex = streamCallOrder.indexOf('streamLLM');
+    const buildContextIndices = streamCallOrder
+      .map((entry, i) => (entry.startsWith('buildContext:') ? i : -1))
+      .filter((i) => i >= 0);
+
+    expect(buildContextIndices.length).toBeGreaterThanOrEqual(2);
+    if (firstStreamIndex !== -1) {
+      buildContextIndices.forEach((idx) => {
+        expect(idx).toBeLessThan(firstStreamIndex);
+      });
+    }
+  });
+
+  it('messages persisted in agent position order', async () => {
+    // Add a third agent
+    await db.insert(roomAgents).values({
+      id: agentId3,
+      roomId,
+      name: 'Agent C',
+      avatarColor: '#aabbcc',
+      avatarIcon: 'star',
+      promptRole: 'You are a third assistant.',
+      provider: 'anthropic',
+      model: 'claude-3-5-haiku-20241022',
+      temperature: 0.7,
+      position: 2,
+    });
+
+    await db.update(rooms).set({ parallelFirstRound: true, turnLimit: 3 } as any).where(eq(rooms.id, roomId));
+
+    // Track call order via different responses per agent
+    let callIdx = 0;
+    mockStreamLLM.mockImplementation(({ system }: { system?: string }) => {
+      const idx = callIdx++;
+      return {
+        textStream: (async function* () {
+          // Add small varying delay to confirm ordering is by position, not arrival
+          await new Promise((r) => setTimeout(r, (2 - idx) * 20));
+          yield `response-from-agent-${idx}`;
+        })(),
+        usage: Promise.resolve({ inputTokens: 10, outputTokens: 5 }),
+      };
+    });
+
+    await ConversationManager.start(roomId, db);
+    await waitForMessages(db, roomId, 3);
+    await waitForStatus(db, roomId, 'idle');
+
+    // Query messages ordered by createdAt
+    const allMessages = await db.query.messages.findMany({
+      where: eq(messages.roomId, roomId),
+      orderBy: (m, { asc }) => [asc(m.createdAt)],
+    });
+
+    const agentMessages = allMessages.filter((m) => m.role === 'agent');
+    expect(agentMessages).toHaveLength(3);
+
+    // Look up positions for each roomAgentId
+    const agentPositions: Record<string, number> = {
+      [agentId]: 0,
+      [agentId2]: 1,
+      [agentId3]: 2,
+    };
+
+    const persistedPositions = agentMessages.map((m) => agentPositions[m.roomAgentId ?? '']);
+    expect(persistedPositions).toEqual([0, 1, 2]);
+  });
+
+  it('abort discards all parallel round results', async () => {
+    await db.update(rooms).set({ parallelFirstRound: true } as any).where(eq(rooms.id, roomId));
+
+    let abortSignalRef: AbortSignal | undefined;
+
+    mockStreamLLM.mockImplementation(({ abortSignal }: { abortSignal?: AbortSignal }) => {
+      abortSignalRef = abortSignal;
+      return {
+        textStream: (async function* () {
+          // Hold until aborted
+          await new Promise<void>((_, reject) => {
+            abortSignal?.addEventListener('abort', () =>
+              reject(new DOMException('AbortError', 'AbortError'))
+            );
+            setTimeout(() => {}, 60000);
+          });
+          yield 'never';
+        })(),
+        usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
+      };
+    });
+
+    // Start and abort quickly
+    ConversationManager.start(roomId, db);
+    await new Promise((r) => setTimeout(r, 80));
+    await ConversationManager.stop(roomId, db);
+
+    await waitForStatus(db, roomId, 'idle');
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Zero agent messages should be persisted
+    const [{ value }] = await db
+      .select({ value: count(messages.id) })
+      .from(messages)
+      .where(eq(messages.roomId, roomId));
+    expect(value).toBe(0);
+  });
+
+  it('emits parallel:start and parallel:end SSE events', async () => {
+    await db.update(rooms).set({ parallelFirstRound: true, turnLimit: 2 } as any).where(eq(rooms.id, roomId));
+
+    mockStreamLLM.mockImplementation(() => makeMockStream());
+
+    await ConversationManager.start(roomId, db);
+    await waitForMessages(db, roomId, 2);
+    await waitForStatus(db, roomId, 'idle');
+
+    const calls = vi.mocked(emitSSE).mock.calls.filter((c) => c[0] === roomId);
+    const eventNames = calls.map((c) => c[1]);
+
+    // parallel:start should appear before any turn:start
+    const parallelStartIdx = eventNames.indexOf('parallel:start');
+    const firstTurnStartIdx = eventNames.indexOf('turn:start');
+    expect(parallelStartIdx).toBeGreaterThanOrEqual(0);
+    expect(parallelStartIdx).toBeLessThan(firstTurnStartIdx);
+
+    // parallel:end should appear after all turn:end events
+    const parallelEndIdx = eventNames.lastIndexOf('parallel:end');
+    const lastTurnEndIdx = eventNames.lastIndexOf('turn:end');
+    expect(parallelEndIdx).toBeGreaterThanOrEqual(0);
+    expect(parallelEndIdx).toBeGreaterThan(lastTurnEndIdx);
+
+    // parallel:start should carry agentCount
+    const parallelStartCall = calls.find((c) => c[1] === 'parallel:start');
+    expect(parallelStartCall?.[2]).toMatchObject({ agentCount: 2 });
+  });
+
+  it('sequential loop continues after parallel round', async () => {
+    await db.update(rooms).set({ parallelFirstRound: true, turnLimit: 4 } as any).where(eq(rooms.id, roomId));
+
+    vi.spyOn(ContextService, 'detectRepetition').mockResolvedValue(false);
+    vi.spyOn(ContextService, 'detectConvergence').mockResolvedValue(false);
+
+    mockStreamLLM.mockImplementation(() => makeMockStream());
+
+    await ConversationManager.start(roomId, db);
+    await waitForMessages(db, roomId, 4);
+    await waitForStatus(db, roomId, 'idle');
+
+    // Parallel round produces 2 messages, sequential loop produces 2 more = 4 total
+    const [{ value }] = await db
+      .select({ value: count(messages.id) })
+      .from(messages)
+      .where(eq(messages.roomId, roomId));
+    expect(value).toBe(4);
   });
 });
 
