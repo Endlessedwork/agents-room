@@ -46,7 +46,7 @@ Agents must be able to have meaningful conversations with each other that produc
 **Target features:**
 - ✓ Agent editing (update any field on existing agents) — Validated in Phase 13: agent-editing
 - ✓ Model picker dropdown (fetch available models from provider) — Validated in Phase 14: providers-page-model-picker
-- Agent presets with CRUD (pre-made agent configurations)
+- ✓ Agent presets with CRUD (pre-made agent configurations) — Validated in Phase 15: presets-crud
 - ✓ Dedicated Providers page (move from Settings, full CRUD) — Validated in Phase 14: providers-page-model-picker
 - ✓ Agent notes/comments (describe purpose and strengths) — Validated in Phase 12: agent-notes-store-foundation
 
@@ -67,7 +67,7 @@ Agents must be able to have meaningful conversations with each other that produc
 
 Shipped v1.1 with 5,942 LOC TypeScript across 5 phases (11 plans) in 2 days.
 Tech stack: Next.js 16, Vercel AI SDK v6, Drizzle ORM + SQLite (WAL), Zustand, Tailwind v4, shadcn/ui (Base UI), llm-info.
-Total codebase: 14 phases across 2 milestones, 32 plans completed.
+Total codebase: 15 phases across 2 milestones, 34 plans completed.
 All v1.0 tech debt resolved in v1.1.
 
 ## Constraints
@@ -97,4 +97,4 @@ All v1.0 tech debt resolved in v1.1.
 | Topic-lock every 5 turns | Redirects drift back to room topic | ✓ Good — keeps conversations focused |
 
 ---
-*Last updated: 2026-03-21 after Phase 13 (agent-editing) completed*
+*Last updated: 2026-03-22 after Phase 15 (presets-crud) completed*
