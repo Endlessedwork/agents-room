@@ -57,7 +57,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   2. Notes text is visible on the agent card in the library without clicking into the agent
   3. Saving a notes change updates the agent card immediately without a page reload
   4. An agent with no notes shows no notes section on its card (graceful empty state)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [ ] 12-01: Schema migration — add nullable notes column to agents table; extend Zod schemas; add updateAgent to agentStore
