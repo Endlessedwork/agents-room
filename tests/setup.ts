@@ -88,5 +88,26 @@ export function createTestDb() {
     )
   `);
 
+  sqlite.exec(
+    [
+      'CREATE TABLE IF NOT EXISTS presets (',
+      '  id TEXT PRIMARY KEY,',
+      '  name TEXT NOT NULL,',
+      '  avatar_color TEXT NOT NULL,',
+      '  avatar_icon TEXT NOT NULL,',
+      '  prompt_role TEXT NOT NULL,',
+      '  prompt_personality TEXT,',
+      '  prompt_rules TEXT,',
+      '  prompt_constraints TEXT,',
+      '  provider TEXT NOT NULL,',
+      '  model TEXT NOT NULL,',
+      '  temperature REAL NOT NULL DEFAULT 0.7,',
+      '  is_system INTEGER NOT NULL DEFAULT 0,',
+      '  created_at INTEGER NOT NULL DEFAULT (unixepoch()),',
+      '  updated_at INTEGER NOT NULL DEFAULT (unixepoch())',
+      ')',
+    ].join('\n'),
+  );
+
   return { db, sqlite };
 }

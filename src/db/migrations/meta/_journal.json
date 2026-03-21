@@ -8,6 +8,13 @@
       "when": 1774091947785,
       "tag": "0000_smiling_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774113647228,
+      "tag": "0001_secret_diamondback",
+      "breakpoints": true
     }
   ]
 }

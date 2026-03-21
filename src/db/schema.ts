@@ -110,6 +110,28 @@ export const providerKeys = sqliteTable('provider_keys', {
     .default(sql`(unixepoch())`),
 });
 
+// --- Presets (agent config templates) ---
+export const presets = sqliteTable('presets', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  avatarColor: text('avatar_color').notNull(),
+  avatarIcon: text('avatar_icon').notNull(),
+  promptRole: text('prompt_role').notNull(),
+  promptPersonality: text('prompt_personality'),
+  promptRules: text('prompt_rules'),
+  promptConstraints: text('prompt_constraints'),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  temperature: real('temperature').notNull().default(0.7),
+  isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 // --- Relations ---
 export const roomsRelations = relations(rooms, ({ many }) => ({
   roomAgents: many(roomAgents),

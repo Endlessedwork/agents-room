@@ -33,6 +33,21 @@ export const createAgentSchema = z.object({
 
 export const updateAgentSchema = createAgentSchema.partial();
 
+export const createPresetSchema = z.object({
+  name: z.string().min(1).max(60),
+  avatarColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  avatarIcon: z.string().min(1),
+  promptRole: z.string().min(1),
+  promptPersonality: z.string().nullable().optional(),
+  promptRules: z.string().nullable().optional(),
+  promptConstraints: z.string().nullable().optional(),
+  provider: z.enum(['anthropic', 'openai', 'google', 'openrouter', 'ollama']),
+  model: z.string().min(1),
+  temperature: z.number().min(0).max(1).default(0.7),
+});
+
+export const updatePresetSchema = createPresetSchema.partial();
+
 export const addAgentToRoomSchema = z.object({
   agentId: z.string().min(1),
 });
