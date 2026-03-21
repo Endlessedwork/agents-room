@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { KeyRound, Users, Plus } from 'lucide-react';
+import { KeyRound, Users, Plus, Layers } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -56,6 +56,10 @@ export function Sidebar() {
         <Link href="/agents" className="flex items-center gap-2 px-3 py-2 rounded text-sm hover:bg-accent transition-colors">
           <Users size={16} />
           Agents
+        </Link>
+        <Link href="/presets" className="flex items-center gap-2 px-3 py-2 rounded text-sm hover:bg-accent transition-colors">
+          <Layers size={16} />
+          Presets
         </Link>
         <Link href="/providers" className="flex items-center gap-2 px-3 py-2 rounded text-sm hover:bg-accent transition-colors">
           <KeyRound size={16} />
