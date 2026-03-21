@@ -103,6 +103,11 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
                   T: {agent.temperature.toFixed(1)}
                 </span>
               </div>
+              {agent.notes && (
+                <p className="text-xs text-muted-foreground mt-2 border-t pt-2 line-clamp-3">
+                  {agent.notes}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex gap-2 mt-3 justify-end">

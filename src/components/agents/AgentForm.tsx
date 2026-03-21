@@ -62,6 +62,7 @@ export function AgentForm({ preset }: AgentFormProps) {
   const [promptPersonality, setPromptPersonality] = useState(preset?.promptPersonality ?? '');
   const [promptRules, setPromptRules] = useState(preset?.promptRules ?? '');
   const [promptConstraints, setPromptConstraints] = useState(preset?.promptConstraints ?? '');
+  const [notes, setNotes] = useState('');
   const [provider, setProvider] = useState<Provider>(preset?.provider ?? 'anthropic');
   const [model, setModel] = useState(preset?.model ?? DEFAULT_MODELS['anthropic']);
   const [temperature, setTemperature] = useState(preset?.temperature ?? 0.7);
@@ -108,6 +109,7 @@ export function AgentForm({ preset }: AgentFormProps) {
           model: model.trim(),
           temperature,
           presetId: preset?.id ?? null,
+          notes: notes.trim() || null,
         }),
       });
       if (res.ok) {
@@ -247,6 +249,22 @@ export function AgentForm({ preset }: AgentFormProps) {
           rows={2}
           placeholder="e.g. Do not use jargon. Keep responses under 200 words..."
         />
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+          Notes
+        </label>
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="e.g. Best for challenging group consensus. Strong at finding logical flaws..."
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Private notes about this agent's purpose and strengths. Visible in the library.
+        </p>
       </div>
 
       {/* Provider */}
