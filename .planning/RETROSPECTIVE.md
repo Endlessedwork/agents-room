@@ -90,6 +90,53 @@
 
 ---
 
+## Milestone: v1.2 — Agent Management
+
+**Shipped:** 2026-03-22
+**Phases:** 4 | **Plans:** 8
+
+### What Was Built
+- Agent notes system — DB migration, Zod validation, store action, textarea in form, display on card
+- Dual-mode AgentForm for create/edit with copy-on-assign disclosure banner
+- Dedicated /providers page replacing Settings — full provider key CRUD with redirect
+- Live model picker — API endpoint fetching models from 5 providers, ModelCombobox with search/fallback/capability tags
+- Presets CRUD — DB table with isSystem flag, 3 seeded system presets, full API/store/UI lifecycle
+- Save as Preset — convert existing agent configuration to reusable preset from edit form
+
+### What Worked
+- Drizzle generate+migrate workflow (established in Phase 12) made subsequent schema changes (Phase 15 presets table) smooth and auditable
+- Copy-on-assign disclosure banner in edit form provides clear UX — users understand library edits don't cascade
+- Per-provider model adapters handled 5 very different APIs cleanly — Anthropic, OpenAI, Google, OpenRouter, Ollama each have unique shapes
+- ModelCombobox fallback to free-text when provider is unconfigured — never blocks agent creation
+- Presets DB with isSystem flag cleanly separates system vs user presets — idempotent seeding with onConflictDoNothing
+
+### What Was Inefficient
+- SUMMARY.md `requirements_completed` frontmatter still empty for Phase 14 (PROV-01, PROV-02) — same documentation gap pattern from v1.0/v1.1
+- AgentCard PRESET_NAMES hardcoded to 3 system preset IDs — user-created presets won't display name badge; should have used store query from start
+- handleSaveAsPreset omits notes field — incomplete data mapping when converting agent to preset
+- ModelInfo type duplicated in ModelCombobox instead of imported from route — fragile type contract
+- 13 human browser checks accumulated across 3 phases without resolution
+
+### Patterns Established
+- Dual-mode form via initialData prop (create when undefined, edit when present)
+- Server component redirect for deprecated pages (Settings → /providers)
+- Per-provider adapter pattern with unified ModelInfo interface
+- Free-text fallback for combobox when data source unavailable
+- isSystem flag pattern for protecting system-managed records from user mutation
+
+### Key Lessons
+1. **Populate SUMMARY frontmatter religiously** — `requirements_completed` gaps cause audit "partial" status even when features are fully implemented
+2. **Dynamic lookups > static maps for extensible data** — PRESET_NAMES static Record fails when users add data; should query store
+3. **Include all fields when converting between types** — save-as-preset missing notes was a simple oversight that automated tests could catch
+4. **Human browser verification backlog grows fast** — 13 checks accumulated across 3 phases; batch verification sessions would be more efficient
+
+### Cost Observations
+- Model mix: primarily sonnet for execution, opus for planning/auditing/milestone completion
+- Sessions: ~3 sessions in 1 day
+- Notable: 8 plans completed in 1 day — fastest milestone yet, benefiting from established patterns
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -98,6 +145,7 @@
 |-----------|--------|-------|------------|
 | v1.0 | 6 | 16 | Initial process — discovered need for inline verification |
 | v1.1 | 5 | 11 | Research-driven phase ordering, consistent TDD, tech debt cleanup |
+| v1.2 | 4 | 8 | Milestone audit workflow, per-provider adapter pattern, dual-mode forms |
 
 ### Cumulative Quality
 
@@ -105,10 +153,12 @@
 |-----------|-------|-------------|----------|
 | v1.0 | 121 | 21/21 | 6/6 phases |
 | v1.1 | 121+ | 15/15 | 5/5 phases |
+| v1.2 | 121+ | 16/16 | 4/4 phases |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Bottom-up build order prevents rework** — ✓ Confirmed in v1.1 (Phase 7→9 dependency planned upfront)
-2. **Milestone audits catch gaps** — skipped audit in v1.1 (100% requirements checked), will validate in v2
-3. **TDD prevents regressions** — ✓ Confirmed in both milestones, zero regressions across 27 plans
-4. **Resolve tech debt in same milestone** — ✓ Confirmed in v1.1 (Phase 11 cleaned up v1.0 debt)
+1. **Bottom-up build order prevents rework** — ✓ Confirmed in v1.1 and v1.2 (Phase 12→13→14→15 dependency chain worked cleanly)
+2. **Milestone audits catch gaps** — ✓ Confirmed in v1.2 (audit found documentation gaps and 3 integration issues before completion)
+3. **TDD prevents regressions** — ✓ Confirmed across all 3 milestones, zero regressions across 35 plans
+4. **Resolve tech debt in same milestone** — ⚠️ v1.2 carries 5 tech debt items forward; consider dedicated cleanup phase
+5. **SUMMARY frontmatter must be populated** — ✓ Recurring issue across all 3 milestones; needs process enforcement

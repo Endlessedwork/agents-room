@@ -1,5 +1,30 @@
 # Milestones
 
+## v1.2 Agent Management (Shipped: 2026-03-22)
+
+**Phases completed:** 4 phases, 8 plans
+**Timeline:** 1 day (2026-03-21 → 2026-03-22)
+**Code:** 7,219 LOC TypeScript | 47 commits | 67 files changed (+9,225 / -199)
+**Requirements:** 16/16 satisfied (2 partial — documentation gap only)
+
+**Key accomplishments:**
+
+1. Agent notes system — notes field with DB migration, Zod validation, store action, and UI (textarea in form + display on card)
+2. Dual-mode AgentForm for create/edit with copy-on-assign disclosure banner
+3. Dedicated /providers page replacing Settings — full provider key CRUD
+4. Live model picker — API endpoint fetching models from 5 providers with ModelCombobox (search, fallback, capability tags)
+5. Presets CRUD — DB table, 3 seeded system presets, full API/store/UI lifecycle
+6. Save as Preset — convert existing agent configuration to reusable preset from edit form
+
+**Known tech debt:**
+
+- AgentCard PRESET_NAMES hardcoded to 3 system preset IDs — user-created presets show no name badge
+- handleSaveAsPreset omits notes field from preset payload
+- SUMMARY frontmatter missing PROV-01, PROV-02 in requirements_completed (documentation gap)
+- 13 human browser checks pending across phases 12, 13, 15
+
+---
+
 ## v1.1 Conversation Quality & Polish (Shipped: 2026-03-21)
 
 **Phases completed:** 5 phases, 11 plans

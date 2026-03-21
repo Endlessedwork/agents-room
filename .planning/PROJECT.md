@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A personal web application where AI agents (powered by Claude, GPT, Gemini, OpenRouter, and Ollama) converse with each other in topic-based rooms. The user observes conversations streaming in real-time, participates by typing messages, and controls agent behavior (start/pause/stop). Conversations feature anti-sycophancy prompting, convergence detection, cost estimation, and parallel first rounds. Built with Next.js 16, Drizzle SQLite, Zustand, and Tailwind v4.
+A personal web application where AI agents (powered by Claude, GPT, Gemini, OpenRouter, and Ollama) converse with each other in topic-based rooms. The user observes conversations streaming in real-time, participates by typing messages, and controls agent behavior (start/pause/stop). Conversations feature anti-sycophancy prompting, convergence detection, cost estimation, and parallel first rounds. Agents are fully manageable — editable, annotatable with notes, with live model selection from providers and reusable presets. Built with Next.js 16, Drizzle SQLite, Zustand, and Tailwind v4.
 
 ## Core Value
 
@@ -36,19 +36,15 @@ Agents must be able to have meaningful conversations with each other that produc
 - ✓ Convergence detection with auto-pause when agents reach consensus — v1.1
 - ✓ Parallel first round (all agents respond independently before seeing peers) — v1.1
 - ✓ Tech debt cleanup: dead code removed, type errors fixed, over-fetching eliminated — v1.1
+- ✓ Agent notes — add/edit notes on any agent, visible on agent card — v1.2
+- ✓ Agent editing — update any field on existing agents with copy-on-assign banner — v1.2
+- ✓ Dedicated Providers page — full CRUD for provider keys, moved from Settings — v1.2
+- ✓ Live model picker — dropdown populated from provider APIs with search, fallback, and capability tags — v1.2
+- ✓ Agent presets — create, save-as, edit, delete presets with 3 seeded system presets — v1.2
 
 ### Active
 
-#### Current Milestone: v1.2 Agent Management
-
-**Goal:** Make agents fully manageable — edit, smart model selection, presets, dedicated provider page, and descriptive notes
-
-**Target features:**
-- ✓ Agent editing (update any field on existing agents) — Validated in Phase 13: agent-editing
-- ✓ Model picker dropdown (fetch available models from provider) — Validated in Phase 14: providers-page-model-picker
-- ✓ Agent presets with CRUD (pre-made agent configurations) — Validated in Phase 15: presets-crud
-- ✓ Dedicated Providers page (move from Settings, full CRUD) — Validated in Phase 14: providers-page-model-picker
-- ✓ Agent notes/comments (describe purpose and strengths) — Validated in Phase 12: agent-notes-store-foundation
+(None — next milestone not yet defined. Use `/gsd:new-milestone` to start.)
 
 ### Out of Scope
 
@@ -65,10 +61,10 @@ Agents must be able to have meaningful conversations with each other that produc
 
 ## Context
 
-Shipped v1.1 with 5,942 LOC TypeScript across 5 phases (11 plans) in 2 days.
+Shipped v1.2 with 7,219 LOC TypeScript across 15 phases (42 plans) in 3 milestones over 4 days.
 Tech stack: Next.js 16, Vercel AI SDK v6, Drizzle ORM + SQLite (WAL), Zustand, Tailwind v4, shadcn/ui (Base UI), llm-info.
-Total codebase: 15 phases across 2 milestones, 34 plans completed.
-All v1.0 tech debt resolved in v1.1.
+v1.2 added agent management: editing, notes, live model picker, providers page, and presets CRUD.
+Known tech debt: preset name badge for user-created presets, notes field in save-as-preset.
 
 ## Constraints
 
@@ -95,6 +91,13 @@ All v1.0 tech debt resolved in v1.1.
 | Buffer-then-emit parallel round | Promise.all contexts, Promise.allSettled LLM calls | ✓ Good — structural isolation, clean abort handling |
 | Anti-sycophancy prompt injection | System injects counter-agreement prompts from round 2 | ✓ Good — agents maintain distinct stances |
 | Topic-lock every 5 turns | Redirects drift back to room topic | ✓ Good — keeps conversations focused |
+| Drizzle generate+migrate (not push) | Auditable migration files from Phase 12 onward | ✓ Good — reproducible schema changes |
+| Dual-mode AgentForm via initialData prop | Single component for create and edit | ✓ Good — no duplication, clean pattern |
+| Settings → /providers redirect | Server component redirect, no dead Settings page | ✓ Good — clean navigation |
+| Per-provider model adapters | Each provider has unique API shape for model listing | ✓ Good — 5 providers fully supported |
+| ModelCombobox with free-text fallback | Graceful degradation when provider unconfigured | ✓ Good — never blocks agent creation |
+| Presets in DB with isSystem flag | System presets seeded, user presets CRUD-able | ✓ Good — clean separation, idempotent seed |
+| PresetForm uses plain Input for model | Presets are templates — free-text model string sufficient | ✓ Good — avoids provider coupling |
 
 ---
-*Last updated: 2026-03-22 after Phase 15 (presets-crud) completed*
+*Last updated: 2026-03-22 after v1.2 milestone completed*

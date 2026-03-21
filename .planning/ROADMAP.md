@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 Agents Room MVP** — Phases 1-6 (shipped 2026-03-20)
 - ✅ **v1.1 Conversation Quality & Polish** — Phases 7-11 (shipped 2026-03-21)
-- 🚧 **v1.2 Agent Management** — Phases 12-15 (in progress)
+- ✅ **v1.2 Agent Management** — Phases 12-15 (shipped 2026-03-22)
 
 ## Phases
 
@@ -35,82 +35,17 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
-### 🚧 v1.2 Agent Management (In Progress)
+<details>
+<summary>✅ v1.2 Agent Management (Phases 12-15) — SHIPPED 2026-03-22</summary>
 
-**Milestone Goal:** Make agents fully manageable — edit existing agents, pick models from a live provider dropdown, manage reusable presets, and annotate agents with notes. Providers get a dedicated page out of Settings.
+- [x] Phase 12: Agent Notes + Store Foundation (2/2 plans) — completed 2026-03-21
+- [x] Phase 13: Agent Editing (1/1 plan) — completed 2026-03-21
+- [x] Phase 14: Providers Page + Model Picker (3/3 plans) — completed 2026-03-21
+- [x] Phase 15: Presets CRUD (2/2 plans) — completed 2026-03-21
 
-## Phases
+Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 
-- [x] **Phase 12: Agent Notes + Store Foundation** - Add notes field to agents table and fix missing updateAgent store action (completed 2026-03-21)
-- [x] **Phase 13: Agent Editing** - Dual-mode AgentForm enables editing any field on an existing agent (completed 2026-03-21)
-- [x] **Phase 14: Providers Page + Model Picker** - Dedicated /providers page and live model dropdown in AgentForm (completed 2026-03-21)
-- [x] **Phase 15: Presets CRUD** - Create, save, edit, and delete agent presets with three seeded system presets (completed 2026-03-21)
-
-## Phase Details
-
-### Phase 12: Agent Notes + Store Foundation
-**Goal**: Agents can be annotated with notes visible in the library, and the store can update agents without a page reload
-**Depends on**: Nothing (first phase of v1.2)
-**Requirements**: NOTE-01, NOTE-02
-**Success Criteria** (what must be TRUE):
-  1. User can type and save a notes field on any agent (create or edit form)
-  2. Notes text is visible on the agent card in the library without clicking into the agent
-  3. Saving a notes change updates the agent card immediately without a page reload
-  4. An agent with no notes shows no notes section on its card (graceful empty state)
-**Plans**: 2 plans
-
-Plans:
-- [ ] 12-01: Schema migration — add nullable notes column to agents table; extend Zod schemas; add updateAgent to agentStore
-- [ ] 12-02: Notes UI — notes textarea in AgentForm (create mode); notes display on AgentCard
-
-### Phase 13: Agent Editing
-**Goal**: Users can update any field on an existing agent and see the change reflected in the library immediately
-**Depends on**: Phase 12
-**Requirements**: EDIT-01, EDIT-02, EDIT-03
-**Success Criteria** (what must be TRUE):
-  1. User can click Edit on any agent card and open a pre-populated form with all current field values
-  2. Saving the edit form updates the agent in the library immediately without a page reload
-  3. The edit form shows a visible banner: "Editing this agent won't affect rooms already using it"
-  4. User can edit every field: name, role, personality, rules, constraints, provider, model, avatar, and notes
-**Plans**: 1 plan
-
-Plans:
-- [ ] 13-01-PLAN.md — Edit route + AgentForm dual-mode + Edit button + copy-on-assign banner + store sync (all EDIT requirements in one plan)
-
-### Phase 14: Providers Page + Model Picker
-**Goal**: Provider keys have a dedicated management page and agent model selection uses a live dropdown instead of free-text input
-**Depends on**: Phase 13
-**Requirements**: PROV-01, PROV-02, MODL-01, MODL-02, MODL-03, MODL-04, MODL-05
-**Success Criteria** (what must be TRUE):
-  1. Navigating to /providers shows full CRUD for all provider API keys (replaces Settings page provider section)
-  2. Provider management is absent from the Settings page
-  3. The model field in AgentForm is a dropdown populated by fetching the selected provider's available models
-  4. Typing in the model dropdown filters the list client-side (handles OpenRouter's 400+ models)
-  5. When a provider API is unreachable, the model field falls back to free-text input with no silent failure
-  6. Provider connection status (configured / not configured) is shown next to the provider selector in AgentForm
-  7. Model capability tags (e.g., vision, large context) appear next to model names when the provider API returns them
-**Plans**: 3 plans
-
-Plans:
-- [ ] 14-01-PLAN.md — /providers page reusing ProviderCard; Settings redirect; Sidebar link update
-- [ ] 14-02-PLAN.md — GET /api/providers/[provider]/models route with per-provider adapters (Anthropic, OpenAI, Google, OpenRouter, Ollama)
-- [ ] 14-03-PLAN.md — ModelCombobox in AgentForm replacing text input; provider status indicator; capability tags; fallback to free-text
-
-### Phase 15: Presets CRUD
-**Goal**: Users can create, save, edit, and delete reusable agent presets; three system presets are available out of the box
-**Depends on**: Phase 13
-**Requirements**: PRST-01, PRST-02, PRST-03, PRST-04
-**Success Criteria** (what must be TRUE):
-  1. Three system presets (Devil's Advocate, Code Reviewer, Researcher) are available in the presets list on first run
-  2. User can create a new preset by filling in agent configuration fields and saving it as a preset
-  3. User can save an existing agent's current configuration as a preset from the agent edit form
-  4. User can edit the name and configuration fields of any user-created preset
-  5. User can delete any user-created preset; system presets cannot be deleted
-**Plans**: 2 plans
-
-Plans:
-- [ ] 15-01-PLAN.md — Presets DB table + migration + seed 3 system presets + Zod schemas + API routes (GET/POST/PUT/DELETE) + presetStore + tests
-- [ ] 15-02-PLAN.md — Presets list page + PresetCard + PresetForm + create/edit routes + sidebar link + migrate agents page to DB presets + "Save as Preset" in AgentForm
+</details>
 
 ## Progress
 
@@ -127,7 +62,7 @@ Plans:
 | 9. Convergence Detection | v1.1 | 2/2 | Complete | 2026-03-20 |
 | 10. Parallel First Round | v1.1 | 3/3 | Complete | 2026-03-21 |
 | 11. Tech Debt Cleanup | v1.1 | 2/2 | Complete | 2026-03-21 |
-| 12. Agent Notes + Store Foundation | 2/2 | Complete    | 2026-03-21 | - |
-| 13. Agent Editing | 1/1 | Complete    | 2026-03-21 | - |
-| 14. Providers Page + Model Picker | 3/3 | Complete    | 2026-03-21 | - |
-| 15. Presets CRUD | 2/2 | Complete    | 2026-03-21 | - |
+| 12. Agent Notes + Store Foundation | v1.2 | 2/2 | Complete | 2026-03-21 |
+| 13. Agent Editing | v1.2 | 1/1 | Complete | 2026-03-21 |
+| 14. Providers Page + Model Picker | v1.2 | 3/3 | Complete | 2026-03-21 |
+| 15. Presets CRUD | v1.2 | 2/2 | Complete | 2026-03-21 |
