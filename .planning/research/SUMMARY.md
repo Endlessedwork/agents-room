@@ -1,183 +1,181 @@
 # Project Research Summary
 
-**Project:** Agents Room v1.1 — Conversation Quality & Polish
-**Domain:** Multi-agent AI chat room — adding conversation quality, cost estimation, parallel first round, and convergence detection to existing system
-**Researched:** 2026-03-20
+**Project:** Agents Room v1.2 — Agent Management milestone
+**Domain:** Agent library management features for a multi-agent LLM conversation app
+**Researched:** 2026-03-21
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Agents Room v1.1 builds on a validated v1.0 foundation (Next.js 16, Vercel AI SDK v6, Drizzle + SQLite, Zustand, Tailwind v4) by adding four focused features: conversation quality improvements, cost estimation, parallel first round, and convergence detection. The research confirms that all four features integrate at the existing `ConversationManager` → `ContextService` → `Gateway` seam without new API routes or major schema changes (one boolean column excepted). The recommended build order is: quality prompts first (enables reliable convergence signals), then cost estimation (fully independent, zero risk), then convergence detection (depends on quality signals), then parallel first round (highest-complexity, touches the turn loop entry point). Only one new production dependency is required: `llm-info@^1.0.69` for static per-model pricing data.
+Agents Room v1.2 is a targeted management milestone that adds five agent-centric features to an already-functional multi-agent conversation platform: agent editing, model picker dropdown, agent presets CRUD, a dedicated providers page, and agent notes. Research confirms the existing codebase is further along than the feature list implies — the PUT `/api/agents/:agentId` edit route, `updateAgentSchema` validation, all five provider API routes, and `ProviderCard` components already exist. The implementation gap is mostly UI and store plumbing, not backend engineering. No new npm packages are required; the entire milestone is deliverable with the current stack.
 
-The biggest architectural insight is that apparent complexity in these features is mostly illusory. Cost estimation is a pure client-side derivation from token data already in SSE events — no DB changes, no turn-loop changes, just a new `CostEstimator` module and chatStore additions. Convergence detection reuses the existing `jaccardSimilarity()` function and mirrors the already-working repetition detection pattern. Parallel first round requires the most care but is isolated to round 0 only (guarded by `messageCount === 0`) with all subsequent rounds unchanged. The existing SSE infrastructure, `status`/`system` event types, and chatStore streaming state are all reused without modification.
+The recommended build sequence follows a strict dependency graph: schema and store foundations first, then the `AgentForm` refactor (which unlocks notes, editing, and eventually presets), then the providers page and model picker in parallel (both require a shared `providerStore`), and presets last because they are the most design-heavy and their scope needs clarification before implementation. The single highest-risk feature is the model picker — all five providers have different model-listing API shapes, some providers expose 400+ models, and the fallback behavior (static list when the API is unreachable) must be built before the happy path.
 
-The critical risks are: (1) false-positive convergence detection firing on sycophantic agreement rather than genuine consensus — requiring minimum-turn guards and AND logic between phrase and similarity signals; (2) timestamp collisions in parallel round inserts breaking message ordering — requiring either a `turnNumber` column or millisecond-resolution timestamps; (3) stale pricing data — requiring an external config file with an "est." disclaimer rather than hardcoded source constants. All three risks have clear prevention strategies documented in the research with no ambiguity about the correct approach.
+The primary risks are operational rather than technical: the copy-on-assign architecture means editing a global agent does NOT update existing room agents (by design), and the UI must surface this clearly. Separately, there is genuine ambiguity in what "presets CRUD" means — the architecture researcher recommends the narrow interpretation (manage agents-created-from-presets, no new DB table) while the stack researcher recommends the wider interpretation (migrate presets to a DB table with seeding). This conflict must be resolved before the presets phase begins.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v1.0 stack requires no substantive additions. `llm-info@^1.0.69` is the single new production dependency — zero runtime dependencies, MIT license, covers all three paid providers (Anthropic, OpenAI, Google) via `ModelInfoMap` keyed by model ID string. OpenRouter and Ollama agents show "N/A" and "local" respectively, not a dollar cost figure. All other features (parallel first round, convergence detection, quality improvements, tech debt cleanup) use existing installed packages.
+No new dependencies are needed for v1.2. All five features can be implemented with the existing stack: Next.js 16 API routes for new endpoints, Drizzle ORM + SQLite for schema migrations, native `fetch` for provider model-listing API calls (not the Vercel AI SDK, which is inference-only), Zod for validation extensions, and Base UI Select/Textarea for UI components. The `llm-info` package (already installed) serves as a static fallback for model lists when provider APIs are unavailable, though it covers only Anthropic, OpenAI, Google, Deepseek, and xAI — not OpenRouter or Ollama.
 
-**Core technologies (v1.0 baseline, validated and unchanged):**
-- `Next.js 16` + Vercel AI SDK `^6.0.116`: streaming infrastructure, provider abstraction — validated
-- `better-sqlite3` + Drizzle ORM `^0.45.1`: synchronous SQLite, schema-push workflow — validated
-- `Zustand`: client state including streaming state, token totals — validated
-
-**New dependency:**
-- `llm-info@^1.0.69`: static per-model pricing for cost estimation — zero deps, MIT, actively maintained (70 published versions as of March 2026)
-
-**Installation:** `npm install llm-info` — the only install command for the entire v1.1 milestone.
-
-**What to avoid adding:** `tiktoken` or tokenizer libraries (token counts already come from provider API responses), OpenRouter pricing lookup (dynamic routing makes static pricing meaningless), `langchain`/LangGraph (100+ transitive deps for 20 lines of logic), persisting computed cost in DB (derives from existing columns, persisting creates drift).
+**Core technologies:**
+- **Next.js 16 API Routes**: New routes for `/api/providers/[provider]/models`, `/api/presets`, `/api/presets/[presetId]` — same pattern as existing `/api/agents` routes
+- **Drizzle ORM + SQLite (WAL)**: `ALTER TABLE ADD COLUMN` for notes; `CREATE TABLE` for presets (if wide scope) — both non-destructive; prefer `drizzle-kit generate && drizzle-kit migrate` over `push` for auditability
+- **Native `fetch` (Node.js 18+)**: All five provider model-listing endpoints called server-side; no HTTP client library needed; keys never reach the browser
+- **`llm-info@1.0.69`**: Static fallback for model lists; use only when live API is unavailable; does not cover OpenRouter or Ollama
+- **Zod**: Extend `createAgentSchema` and `updateAgentSchema` with `notes` field; new `createPresetSchema` if wide scope presets land in v1.2
+- **Base UI Select + Textarea**: Model picker combobox and notes textarea — both components already exist in `src/components/ui/`
 
 ### Expected Features
 
-**Must have (table stakes for v1.1):**
-- Cost estimation display — token counts already shown; dollar amounts are the natural completion; users running multiple agents across multiple turns need cost awareness
-- Convergence auto-stop — users expect the system to recognize consensus without manual monitoring; turn limit alone is insufficient as a stopping condition
-- Tech debt cleanup — orphaned `ConversationPanel.tsx`, test type errors, room detail over-fetching; a quality milestone that ignores internal quality is incomplete
+**Must have (table stakes):**
+- **Agent editing** — API route already exists; only UI is missing; central `AgentForm` refactor unlocks notes and presets
+- **Model picker dropdown** — free-text model input is error-prone; every serious LLM tool provides a picker; highest implementation complexity of the five features
+- **Dedicated Providers page** — provider management deserves its own `/providers` route; current `/settings` conflates concerns
+- **Agent notes** — users need free-text annotations on library agents; one nullable TEXT column + a textarea field
 
-**Should have (differentiators for v1.1):**
-- Independent parallel first round — eliminates herding/anchoring on the first sequential response; Multi-Agent Debate research (MAD, ACL 2025) confirms this as the canonical technique for genuine independent perspectives
-- Conversation quality improvements via prompt engineering — anti-agreement instructions, topic-lock injection, and quality-directing framing in `ContextService.buildContext()`; also enables reliable convergence detection downstream
+**Should have (competitive):**
+- **User-created preset CRUD** — turns the agent library into a composition tool; requires new `presets` DB table (if wide scope confirmed)
+- **Provider connection status indicator in agent form** — show configured/unconfigured status next to the provider selector; no new API route needed
+- **Model list search/filter for OpenRouter** — 400+ models makes a flat dropdown unusable; client-side filter on the fetched list
 
-**Defer to v1.2+:**
-- Per-agent cost breakdown — room-level totals ship in v1.1; per-agent detail is low priority
-- Asymmetric context injection — adds config surface area; validate quality improvements first
-- Agent long-term memory — too complex; out of scope per PROJECT.md
+**Defer to v2+:**
+- Agent versioning (prompt change history + diff UI)
+- Agent import/export (JSON)
+- Bulk agent operations
+- Room agent editing (editing in-room copies independently of library)
+- Agent tags/categories
 
 ### Architecture Approach
 
-All four features land at the `ConversationManager` → `ContextService` seam following the "Augment, Don't Replace" pattern. Parallel first round adds a branch before the loop guarded by `messageCount === 0`. Convergence detection adds a check alongside the existing repetition check. Quality prompts extend `buildContext()` without changing its contract. Cost estimation is client-side derivation that never enters the turn loop. The existing SSE infrastructure (events keyed by `agentId`), streaming state machine, and `status`/`system` event types are all reused without modification.
+The existing architecture requires only additive changes for v1.2. The conversation engine, SSE streaming, and all room-level components are untouched. Changes concentrate in the agent management layer: `AgentForm` becomes a dual-mode component (create and edit), a new `providerStore` Zustand store centralizes provider state for both the providers page and the model picker, a new `model-fetcher.ts` module normalizes per-provider model-list API responses, and the `agents` schema gains a nullable `notes` column via migration.
 
-**Components changed:**
-1. `lib/conversation/manager.ts` (MODIFIED) — parallel first round branch, convergence check after each turn
-2. `lib/conversation/context-service.ts` (MODIFIED) — quality framing in `buildContext()`, new `detectConvergence()` static method
-3. `lib/conversation/cost-estimator.ts` (NEW) — static pricing table via `llm-info`, `computeCost()`, `estimateRoomCost()`
-4. `stores/chatStore.ts` (MODIFIED) — per-message `estimatedCost` field, total cost accumulator, `loadHistory` uses `estimateRoomCost`
-5. Cost display UI component (NEW) — renders cost per message and room total in header
-
-**Unchanged:** `speaker-selector.ts`, `lib/llm/gateway.ts`, `lib/sse/stream-registry.ts`, `db/schema.ts` (except one boolean column), all API routes.
-
-**Key data flow for cost:** SSE `turn:end` already carries `inputTokens`, `outputTokens`; `turn:start` already carries `model` and `provider`. `CostEstimator.computeCost()` runs in `chatStore.completeTurn()` — no extra API call, no DB change, no turn-loop modification.
-
-**Key data flow for convergence:** After each `turn:end` persist, `ContextService.detectConvergence(db, roomId)` queries last N agent messages, applies 2-signal AND logic (keyword phrases + Jaccard similarity), and if both signals true: sets room status to 'paused', inserts a system message, emits existing `status` and `system` SSE event types.
-
-**Parallel round SSE constraint:** `chatStore.streaming` holds a single `StreamingState` slot. Truly parallel token streaming would break the client state machine. Solution: run all LLM calls in parallel but buffer each agent's full response, then emit SSE sequentially per agent — preserving the latency benefit (slowest agent time vs. sum of all) without client-side changes.
+**Major components:**
+1. **`AgentForm.tsx` (modified)** — dual create/edit mode via `initialData` prop; model combobox replacing free-text input; notes textarea; wires to both `POST /api/agents` and `PUT /api/agents/[id]`
+2. **`providerStore.ts` (new)** — Zustand store holding providers list, model cache keyed by provider name, and loading flags; shared by `ProvidersPage` and `AgentForm`
+3. **`model-fetcher.ts` (new)** — per-provider model-listing adapters with a unified `{ id, name }` interface; 5-second timeout; static fallback list when API is unreachable
+4. **`/api/providers/[provider]/models/route.ts` (new)** — server-side proxy that reads the stored API key from `providerKeys` table and returns a normalized model list; prevents key exposure in the browser
+5. **`/agents/[agentId]/edit/page.tsx` (new)** — server component that fetches agent by ID and renders `AgentForm` with `initialData`
+6. **`/providers/page.tsx` (new)** — dedicated provider management page backed by `providerStore`; reuses `ProviderCard` component unchanged
 
 ### Critical Pitfalls
 
-1. **False-positive convergence on sycophantic agreement** — LLMs are structurally predisposed to agreement in group settings (ACL 2025, CONSENSAGENT). Require both keyword AND Jaccard similarity signals (AND logic, threshold 0.35), minimum 6 turns before convergence can fire, and a minimum response-length guard (ignore responses under 20 words). Convergence auto-stop must pause (resumable), not stop permanently.
+1. **Agent edit silently diverging from room agents** — Editing a global agent does NOT update room agents (copy-on-assign by design). Without a UI disclosure, users will be confused when their "updated" agent behaves differently in existing rooms. Add a banner: "Changes apply to new room assignments only." Never cascade `UPDATE` from `agents` to `roomAgents`. Address in: agent editing phase.
 
-2. **Timestamp collision breaks parallel round message ordering** — SQLite `unixepoch()` is second-resolution; multiple inserts within the same second get identical `createdAt` values. Add a `turnNumber INTEGER` column with `DEFAULT 0` as a tiebreaker in `ORDER BY createdAt ASC, turnNumber ASC`. Migration via `drizzle-kit push` (established project pattern).
+2. **Missing `updateAgent` in agentStore causing stale UI** — The store has `createAgent` and `deleteAgent` but no `updateAgent`. After a successful PUT, the agents list shows stale data until page reload. Implement `updateAgent` before building the edit UI. Never use `window.location.reload()` as a workaround — PROJECT.md already flags this as tech debt. Address in: agent editing phase (prerequisite).
 
-3. **Abort during parallel round leaves orphaned persisted messages** — allocate one `AbortController` per agent, stored as an array in `activeControllers`. Before persisting any parallel-round response, check if room status is still 'running'. Wrap all parallel-round DB inserts in an abort check.
+3. **Model picker with no fallback on API failure** — Provider model-listing APIs fail for many legitimate reasons (key not configured, provider down, Ollama not running). A picker that shows an empty dropdown or infinite spinner is worse than free-text input. Build the static fallback list before the live fetch. Apply a 5-second timeout. Show "No local models — start Ollama" specifically for Ollama. Address in: model picker phase.
 
-4. **Stale hardcoded pricing** — never embed prices in TypeScript source constants. Use `llm-info` as the pricing source (community-maintained, 70 version updates tracking model launches). Display "est." prefix on all cost figures. Show "—" for unknown models, never "$0.00" which implies falsely that the model is free.
+4. **Static vs. DB presets duality causing silent data loss** — `AgentPresets.ts` has 3 hardcoded presets. If a new `presets` DB table is added without seeding these 3 records, the existing presets vanish from the UI. The `presetId` column on `agents` currently stores string IDs matching the static list — making it a true FK requires the referenced rows to exist. Audit `AgentPresets.ts` before writing any schema code. Address in: presets CRUD phase.
 
-5. **ContextService topic double-injection after parallel round** — the existing seeding logic checks if history starts with a `user` role message. After a parallel round, history starts with multiple agent messages, which re-triggers topic injection on the first sequential turn. Fix: explicitly insert a `user`-role topic seed message to DB before firing the parallel round, making the first DB record always the user seed.
+5. **Schema migration not applied to actual DB file** — Drizzle's TypeScript types track the schema definition; the SQLite file tracks reality. Editing `schema.ts` without running `drizzle-kit generate && drizzle-kit migrate` against the actual `data/agents-room.db` produces a TypeScript-passes/runtime-crashes mismatch. The first schema change (notes column) is the moment to establish this workflow correctly. Address in: agent notes phase.
 
 ## Implications for Roadmap
 
-Based on research, the dependency chain is clear: quality prompts enable reliable convergence signals; cost estimation is fully independent; parallel first round is highest-risk and should follow proven stable features.
+Based on combined research, the five features group into four implementation phases that follow a dependency graph rather than arbitrary time-boxing.
 
-### Phase 1: Conversation Quality Improvements
+### Phase 1: Foundation — Schema, Store, Notes
 
-**Rationale:** Zero dependencies on other features; isolated to `ContextService.buildContext()`; making agents use explicit agreement language also improves convergence detection reliability downstream. Build this first so it is stable before adding the convergence check that depends on it.
-**Delivers:** Anti-sycophancy instructions, topic-lock injection every N turns, anti-agreement meta-instruction prepended before round 2+, improved summary prompts explicitly requesting insights/unresolved disagreements/open questions.
-**Addresses:** Conversation quality differentiator from FEATURES.md.
-**Avoids:** Test-regression pitfall — read existing `context-service.test.ts` before touching `buildContext()`, update string assertions before adding new behavior. No `as any` casts to make tests pass.
+**Rationale:** Notes requires the first schema migration and establishes the `drizzle-kit generate + migrate` workflow for all subsequent changes. The `agentStore.updateAgent` action is a prerequisite for editing and has zero UI surface area to debate. Getting both right first de-risks everything else. This phase has the smallest blast radius if something goes wrong.
 
-### Phase 2: Cost Estimation
+**Delivers:** `notes` column on `agents` table (migration applied), `updateAgent` action in `agentStore`, notes textarea in `AgentForm` (create mode only for now), notes preview in `AgentCard`.
 
-**Rationale:** Fully independent of all other features; zero risk of breaking existing behavior; ships immediate user value. Validates the chatStore modification pattern (adding fields to `completeTurn()`) at low risk before the more complex parallel round changes touch the same file.
-**Delivers:** `lib/conversation/cost-estimator.ts` with `llm-info`-backed `computeCost()` and `estimateRoomCost()`; per-message "est. $X.XX" display; room total in header; "—" for unknown models; "local" for Ollama; "Pricing as of [date]" disclosure.
-**Addresses:** Cost estimation table stakes from FEATURES.md.
-**Avoids:** Stale-pricing pitfall (use `llm-info`, not hardcoded constants); cost-anxiety UX pitfall (update cost only after `turn:end`, not per-token); false precision (display "est." prefix throughout).
+**Addresses:** Agent notes (table stakes), tech debt of missing `updateAgent`.
 
-### Phase 3: Convergence Detection
+**Avoids:** Schema-not-migrated pitfall (Pitfall 4); store-sync pitfall (Pitfall 6); perpetuating `window.location.reload()` anti-pattern.
 
-**Rationale:** Depends on Phase 1 quality prompts for reliable phrase signals. Mirrors the existing `detectRepetition()` pattern — same DB query shape, new detection logic — so implementation risk is low once quality prompts are stable.
-**Delivers:** `ContextService.detectConvergence()` with 2-signal AND logic (agreement keyword phrases + Jaccard similarity threshold 0.35); minimum 6-turn guard; auto-pause on convergence with system message explaining why; resume path preserved (same as repetition auto-pause).
-**Addresses:** Convergence auto-stop table stakes from FEATURES.md.
-**Avoids:** False-positive convergence pitfall via AND logic and minimum-turn guard; sycophancy-triggered false stop; permanent stop instead of pausable state.
+### Phase 2: Agent Editing UI
 
-### Phase 4: Parallel First Round
+**Rationale:** With `updateAgent` in the store and the schema migrated, the only remaining work is UI. This phase performs the central refactor of `AgentForm` into dual create/edit mode — the same refactor that notes (in edit mode), the model picker, and presets all depend on. Completing this phase makes the milestone's most-depended-upon change independently verifiable before other features build on it.
 
-**Rationale:** Highest-complexity change — modifies the turn loop entry point, which is the highest-risk area of the codebase. Should be built after the other features are stable so the test suite provides a solid regression baseline. The `messageCount === 0` guard isolates the change to round 0 only.
-**Delivers:** `parallelFirstRound: boolean` column in rooms table; `ConversationManager.start()` branch firing all agents via `Promise.all` when `messageCount === 0`; per-agent AbortController array; sequential SSE emission of buffered responses; "Agents forming independent views..." UI indicator during parallel phase; latency improvement (slowest agent time vs. sum of all).
-**Addresses:** Independent parallel first round differentiator from FEATURES.md.
-**Avoids:** Three parallel-specific pitfalls: abort during parallel round (per-agent AbortControllers + abort check before persist), timestamp collision (turnNumber column + drizzle-kit push migration), ContextService double-injection (explicit user-role topic seed inserted to DB before parallel round fires).
+**Delivers:** `/agents/[agentId]/edit` page, `AgentForm` dual-mode (create and edit), Edit button on `AgentCard`, notes field active in both create and edit modes, disclosure banner about copy-on-assign isolation.
 
-### Phase 5: Tech Debt Cleanup
+**Addresses:** Agent editing (table stakes), notes field available in edit mode.
 
-**Rationale:** Interleaved throughout is ideal — type errors fixed alongside whichever feature touches the affected file, orphaned file removed early. If executed as a standalone phase, do it after parallel round is stable so the full regression baseline is in place.
-**Delivers:** `ConversationPanel.tsx` removed (grep all imports first, run `npm run build` to verify), zero `tsc --noEmit` errors (no `as any` casts added), room detail endpoint over-fetching fixed (validate existing consumers still receive required fields).
-**Addresses:** Tech debt cleanup table stakes from FEATURES.md.
-**Avoids:** Dead code removal regression pitfall (grep + build before delete); type-cast pitfall (fix underlying types, not symptoms); over-fetching fix regression (validate field coverage before shipping).
+**Avoids:** Copy-on-assign divergence pitfall (Pitfall 1) — disclosure banner is a required acceptance criterion, not optional polish.
+
+### Phase 3: Providers Page + Model Picker
+
+**Rationale:** These two features share `providerStore` — building them together prevents the anti-pattern of keeping provider state in local component state, which would make the model picker unable to access provider data without prop threading. Build providers page and store first, then wire `model-fetcher.ts` and the API route, then replace the text input in `AgentForm` with the combobox.
+
+**Delivers:** `/providers` page, `providerStore` Zustand store, `/settings` redirected to `/providers`, `Sidebar` updated with Providers link, `/api/providers/[provider]/models` route, `model-fetcher.ts`, model combobox in `AgentForm` with loading state and static fallback.
+
+**Uses:** Native `fetch` for provider APIs, `llm-info` as fallback for unconfigured providers, Base UI Select for combobox.
+
+**Addresses:** Dedicated providers page (table stakes), model picker (table stakes).
+
+**Avoids:** Provider-state-in-local-state anti-pattern; model picker no-fallback pitfall (Pitfall 2); provider page navigation and fetch-not-called-on-mount pitfall (Pitfall 5).
+
+**Research flag:** This phase has the highest implementation risk due to per-provider API shape diversity. The STACK.md and FEATURES.md research provides verified endpoints and response shapes for all five providers — use as the implementation spec. No additional research-phase is needed, but keep per-provider adapter logic strictly isolated from UI.
+
+### Phase 4: Presets CRUD
+
+**Rationale:** Presets are the most design-heavy feature and carry a scope ambiguity that must be resolved before implementation. Placing presets last means the decision can be made with full context of what editing already delivers. Under the narrow interpretation (presets = agents-created-from-presets), Phase 2 already satisfies the requirement. Under the wide interpretation (user-managed preset templates in a DB table), this phase adds a migration, CRUD routes, and management UI.
+
+**Delivers (narrow scope — no new code required):** Preset-origin agents are fully editable after Phase 2. Document the workflow. Mark as complete.
+
+**Delivers (wide scope):** New `presets` DB table, seeded with all 3 existing presets from `AgentPresets.ts`, CRUD API routes (`GET/POST /api/presets`, `PUT/DELETE /api/presets/[id]`), preset management UI, "Save as preset" action on agent edit form, confirmation dialog on "Apply Preset" to prevent silent field overwrite.
+
+**Addresses:** Agent presets CRUD (differentiator if wide scope).
+
+**Avoids:** Static-vs-DB presets duality pitfall (Pitfall 3) — seed existing presets into DB before removing the static array; preset apply overwrites user fields without warning (Pitfall 8).
+
+**Research flag:** Scope decision required before planning this phase. If wide scope is confirmed, plan the preset management UX (preset list page vs. inline on agents page, system vs. user preset display, apply-with-confirmation flow) before implementation. This phase may warrant `/gsd:research-phase` if wide scope is selected.
 
 ### Phase Ordering Rationale
 
-- **Quality before convergence:** Quality prompts produce explicit agreement language ("I concur", "we've established") that the phrase-based convergence detector relies on. Building convergence without quality prompts first means the detector operates on sycophantic filler rather than genuine signals.
-- **Cost before parallel round:** Cost estimation validates the chatStore modification pattern at low risk. Parallel round touches the same `chatStore.ts` with more complex changes that benefit from a stable baseline.
-- **Parallel round last among features:** The turn loop entry point is the highest-risk modification surface. A complete regression baseline (test suite with quality, cost, and convergence phases stable) provides the best safety net.
-- **Tech debt interleaved:** Cleanup is easiest when the file being cleaned is already open for another feature change. The orphaned file removal is independent of all features and can happen any time.
+- **Foundation before editing:** `updateAgent` in the store is a code-level prerequisite for the edit form; the schema migration establishes the migration workflow for notes and (if needed) presets.
+- **Editing before model picker:** `AgentForm` must be refactored to dual-mode before the model picker field can be added to both create and edit paths consistently.
+- **Providers page before model picker:** `providerStore` must exist before the model picker can use it; both consumers (providers page and model picker) share one store fetch, avoiding duplicate API calls.
+- **Presets last:** Scope is ambiguous; resolving after editing is implemented reveals whether presets CRUD is already satisfied or needs a new DB table and management UI.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 4 (Parallel First Round):** The abort-during-parallel-round scenario and the ContextService double-injection edge case are complex enough to warrant explicit acceptance test writing before implementation. The `turnNumber` schema migration needs to be planned before touching the turn loop. Recommend `/gsd:research-phase` for this phase.
+Phases likely needing deeper research during planning:
+- **Phase 4 (Presets CRUD — wide scope only):** Scope must be confirmed with project owner first. If wide scope, plan preset management UX before any implementation begins. Consider `/gsd:research-phase` for this phase if wide scope is selected.
 
-Phases with standard patterns (skip research):
-- **Phase 1 (Quality):** Prompt engineering improvements follow clear patterns; no external integration; validated by test suite.
-- **Phase 2 (Cost):** `llm-info` integration is a straightforward static lookup; well-documented package.
-- **Phase 3 (Convergence):** Mirrors existing `detectRepetition()` pattern; algorithm is research-documented.
-- **Phase 5 (Tech Debt):** Grep + build + tsc workflow; no research needed.
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (Foundation):** Standard Drizzle migration + Zustand store action patterns; both fully established in the existing codebase.
+- **Phase 2 (Agent Editing):** PUT route already exists; edit page pattern mirrors existing `/agents/new` exactly.
+- **Phase 3 (Providers + Model Picker):** All five provider API endpoints verified with HIGH confidence; per-provider adapter pattern is well-defined in research.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | `llm-info` inspected locally — `ModelInfoMap`, `ModelInfo` types confirmed. Pricing cross-referenced with official Anthropic pricing page ($3/$15 per MTok for Claude Sonnet 4 matches). Parallel IIFE pattern validated via Vercel AI SDK documentation. |
-| Features | HIGH | Cost estimation and parallel first round patterns confirmed by peer-reviewed MAD research (arXiv, ACL 2025). Convergence detection approach validated by ACL 2025 CONSENSAGENT paper. Quality improvements confirmed by Anthropic context engineering blog. |
-| Architecture | HIGH | Direct codebase analysis of all relevant modules (`manager.ts`, `context-service.ts`, `speaker-selector.ts`, `gateway.ts`, `stream-registry.ts`, `chatStore.ts`, `db/schema.ts`). Integration points confirmed from source. No inference — component boundaries derived from actual file inspection. |
-| Pitfalls | HIGH | Multiple peer-reviewed sources on sycophancy and convergence failure modes (ACL 2025, arXiv 2025). SQLite timestamp issue confirmed by schema inspection and known `unixepoch()` second-resolution behavior. Abort-during-parallel-round scenario derives from ConversationManager's existing abort model (inspected directly). |
+| Stack | HIGH | All technologies already in use; no new packages; all five provider model-listing API endpoints verified against official documentation |
+| Features | HIGH | Based on direct codebase inspection; existing routes and components inventoried; clear dependency graph derived from live code |
+| Architecture | HIGH | Derived from direct codebase inspection of all relevant modules; component boundary map names specific files with NEW/MODIFIED/UNCHANGED status |
+| Pitfalls | HIGH | Codebase-specific pitfalls verified against live code; standard SQLite/Drizzle/Zustand failure modes well-documented; security patterns (key masking, SSRF) drawn from established patterns |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Convergence threshold calibration:** The Jaccard similarity threshold (0.35) and minimum-turn guard (6 turns) are research-informed starting points, not validated values. Plan for a post-ship tuning pass after Phase 3. The threshold is a configurable constant — adjusting it requires no structural changes.
-- **Ollama concurrency in parallel round:** Ollama is single-threaded locally, meaning the parallel first round with an Ollama agent is effectively sequential even when `Promise.all` fires. Not a bug but a UX gap — the latency benefit disappears for local agents. Consider a per-provider concurrency note in the UI during the parallel phase.
-- **Quality prompt effectiveness:** Prompt engineering improvements are directionally correct but actual quality impact is not predictable without running real conversations. Mark quality improvements as "needs validation" after Phase 1 ships; be prepared to iterate on wording.
-- **OpenRouter cost display:** OpenRouter routing is dynamic — static pricing is not meaningful. Research confirms "N/A" is the correct display, but this means OpenRouter users get zero cost information. Acceptable for v1.1; revisit if OpenRouter usage is significant.
+- **Presets scope ambiguity:** Architecture research and stack research disagree on whether "presets CRUD" requires a new DB table. Architecture team recommends narrow interpretation (no new table); stack team recommends wide interpretation (new `presets` table with seeded data). Resolve with project owner before Phase 4 planning.
+- **Anthropic model list endpoint discrepancy:** ARCHITECTURE.md states Anthropic has no public `/models` enumerate endpoint and recommends a static curated list; STACK.md documents a live `GET https://api.anthropic.com/v1/models` endpoint. Reconcile during Phase 3: attempt the live endpoint first, fall back to curated static list if unavailable.
+- **OpenAI model list filtering criteria:** The `/v1/models` endpoint returns non-chat models (embeddings, whisper, DALL-E). The filter heuristic (`id.startsWith('gpt-')` + o-series prefixes) may need tuning as OpenAI releases new model families. Validate filtering logic against a live response during Phase 3 implementation.
+- **Migration tool consistency:** ARCHITECTURE.md notes the project has historically used `drizzle-kit push` (no migration files directory). STACK.md recommends switching to `generate + migrate` for v1.2 for auditability. Confirm and document the chosen approach at the start of Phase 1; do not mix strategies across phases.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-- `npmjs.com/package/llm-info` — Package metadata, zero deps, `ModelInfoMap` and `ModelInfo` types inspected locally, provider coverage verified
-- Anthropic pricing page (`platform.claude.com/docs/en/about-claude/pricing`) — Claude Sonnet 4 at $3/$15 per MTok cross-referenced with `llm-info` data
-- [Improving Factuality and Reasoning in Language Models through Multiagent Debate](https://arxiv.org/abs/2305.14325) — Foundational MAD paper; parallel first round pattern
-- [CONSENSAGENT: Sycophancy Mitigation in Multi-Agent LLM Interactions — ACL 2025](https://aclanthology.org/2025.findings-acl.1141/) — Sycophancy structural property, convergence keyword+similarity approach
-- [Emergent Convergence in Multi-Agent LLM Annotation (ACL 2025)](https://aclanthology.org/2025.blackboxnlp-1.12.pdf) — Convergence detection approach
-- [Multi-Agent Consensus Seeking via Large Language Models](https://arxiv.org/pdf/2310.20151) — Convergence algorithm validation
-- [Effective context engineering for AI agents (Anthropic)](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Quality prompt design patterns
-- Direct codebase analysis: `src/lib/conversation/manager.ts`, `context-service.ts`, `speaker-selector.ts`, `gateway.ts`, `sse/stream-registry.ts`, `stores/chatStore.ts`, `db/schema.ts`
+- Anthropic List Models API — `GET /v1/models` with `X-Api-Key` + `anthropic-version` headers — https://platform.claude.com/docs/en/api/models/list
+- OpenAI List Models API — `GET /v1/models` with Bearer auth — https://platform.openai.com/docs/api-reference/models/list
+- OpenRouter models endpoint — `GET /api/v1/models` — https://openrouter.ai/docs/api/api-reference/models/get-models
+- Ollama list models — `GET /api/tags` — https://docs.ollama.com/api/tags
+- Google Generative AI models — `GET /v1beta/models?key={API_KEY}` — https://ai.google.dev/gemini-api/docs/models
+- `llm-info@1.0.69` runtime inspection — 44 models across 5 providers; no OpenRouter or Ollama entries verified by direct `node -e` inspection
+- Direct codebase inspection — `src/db/schema.ts`, `src/lib/validations.ts`, `src/stores/agentStore.ts`, `src/app/api/agents/[agentId]/route.ts`, `src/app/api/providers/`, `src/components/agents/AgentForm.tsx`, `AgentCard.tsx`, `AgentPresets.ts`, `src/app/(dashboard)/settings/page.tsx`, `src/components/layout/Sidebar.tsx`
 
 ### Secondary (MEDIUM confidence)
-
-- [Multiple Parallel AI Streams with the Vercel AI SDK](https://mikecavaliere.com/posts/multiple-parallel-streams-vercel-ai-sdk) — IIFE pattern for parallel `streamText` calls
-- [Multi-Agent Debate: Performance, Efficiency, and Scaling Challenges (ICLR 2025)](https://d2jud02ci9yv69.cloudfront.net/2025-04-28-mad-159/blog/mad/) — MAD limitations and parallel round design tradeoffs
-- [Agent Chat Rooms: Multi-Agent Debate (MindStudio)](https://www.mindstudio.ai/blog/agent-chat-rooms-multi-agent-debate-claude-code) — Practitioner implementation guide
-- LLM API Pricing (March 2026) — costgoat.com, tldl.io — cross-reference for pricing ranges
-- [Peacemaker or Troublemaker: Sycophancy in Multi-Agent Debate — arXiv 2025](https://arxiv.org/pdf/2509.23055) — Sycophancy failure modes corroboration
+- Drizzle ORM migration docs — `drizzle-kit generate` + `drizzle-kit migrate` workflow; project history with `drizzle-kit push` inferred from absence of migrations directory
+- OpenAI model list filtering heuristics — `id.startsWith('gpt-')` + o-series prefix filtering — verified against training data; needs runtime validation during Phase 3
 
 ### Tertiary (LOW confidence)
-
-- `pricepertoken.com` — Community pricing aggregator; used only as cross-reference, not authoritative source
+- Ollama SSRF via `baseUrl` — known pattern for apps accepting user-supplied HTTP endpoints; `saveProviderKeySchema` uses `z.string().url()` but does not restrict to localhost — assess during Phase 3 security review
 
 ---
-*Research completed: 2026-03-20*
+*Research completed: 2026-03-21*
 *Ready for roadmap: yes*

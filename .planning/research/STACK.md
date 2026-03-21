@@ -1,197 +1,264 @@
 # Stack Research
 
-**Domain:** Multi-agent AI chat room (personal web app, real-time, multi-LLM provider)
-**Researched:** 2026-03-20 (v1.1 update — new features only)
-**Confidence:** HIGH (llm-info library), HIGH (parallel pattern), MEDIUM (convergence approach)
+**Domain:** Agent management features — editing, model picker, presets CRUD, providers page, agent notes
+**Researched:** 2026-03-21
+**Confidence:** HIGH
 
 ---
 
-## v1.0 Baseline (DO NOT RE-RESEARCH)
+## Context: Subsequent Milestone (v1.2)
 
-Already installed and validated:
+This is a research update for a subsequent milestone. The following are already validated and must NOT be re-researched or changed:
 
-| Technology | Version | Status |
-|------------|---------|--------|
+| Already Present | Version | Status |
+|-----------------|---------|--------|
 | Next.js | `^16.2.0` | Validated |
 | Vercel AI SDK (`ai`) | `^6.0.116` | Validated |
 | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google` | `^3.x` | Validated |
 | `ollama-ai-provider-v2`, `@openrouter/ai-sdk-provider` | latest | Validated |
-| Drizzle ORM + SQLite (`better-sqlite3` + `drizzle-kit`) | `^0.45.1` / `^0.31.10` | Validated |
-| Zustand, Tailwind v4, shadcn/ui (Base UI), Biome, Vitest | — | Validated |
-| `zod`, `nanoid`, `date-fns`, `lucide-react` | — | Validated |
-
-The v1.0 stack document covers rationale for all of the above. This document covers **only what v1.1 needs**.
+| Drizzle ORM + `better-sqlite3` + `drizzle-kit` | `^0.45.1` / `^0.31.10` | Validated |
+| `llm-info` | `^1.0.69` | Validated |
+| Zustand, Tailwind v4, Base UI (`@base-ui/react`), Biome, Vitest | — | Validated |
+| `zod`, `nanoid`, `date-fns`, `lucide-react`, `clsx`, `tailwind-merge` | — | Validated |
 
 ---
 
-## New Dependencies Required for v1.1
+## New Dependencies Required for v1.2
 
-### Only One New Production Dependency
+**None.** All five v1.2 features can be implemented with the existing stack. No new npm packages should be installed.
 
-| Library | Version | Purpose | Why |
-|---------|---------|---------|-----|
-| `llm-info` | `^1.0.69` | Static per-model pricing data for cost estimation | Zero runtime dependencies. Covers all three paid providers (Anthropic, OpenAI, Google). Provides `pricePerMillionInputTokens` and `pricePerMillionOutputTokens` on every `ModelInfo` entry. Has `ModelInfoMap` (keyed by model ID string) and `getModelInfoWithId()`. MIT license. 70 published versions as of March 2026 — actively maintained. No other npm package offers multi-provider static pricing with this coverage. |
+---
 
-### No New Libraries for the Other Three Features
+## Recommended Stack for New Features
 
-**Parallel first round:** Pure application logic change to `ConversationManager`. Pattern is to fire N `streamLLM()` calls as non-awaited IIFEs (one per agent), then collect with `Promise.allSettled()`. The existing `emitSSE()` fan-out already handles concurrent `turn:start`/`token`/`turn:end` events keyed by `agentId`. No new library required.
+### Core Technologies
 
-**Convergence detection:** New `ContextService.detectConvergence()` method reusing the existing `jaccardSimilarity()` function already in-file, plus keyword phrase scanning. No external library required. Research confirms this 2-signal approach (keywords + content similarity) is used in production multi-agent NLP systems.
+| Technology | Already Present | New Usage in v1.2 | Why Sufficient |
+|------------|-----------------|-------------------|----------------|
+| Drizzle ORM + SQLite | Yes | New `notes` column on `agents`; new `presets` table | `ALTER TABLE ADD COLUMN` + `CREATE TABLE` — standard Drizzle migrations |
+| Next.js API Routes | Yes | New routes: `/api/providers/[provider]/models`, `/api/presets`, `/api/presets/[presetId]` | Same pattern as existing `/api/agents` and `/api/providers` routes |
+| Native `fetch` (Node.js) | Yes (implicit) | Call provider model-listing REST APIs server-side | No HTTP client library needed — Node.js 18+ has native fetch |
+| `llm-info` | Yes | `getAllModelsWithIds()` as static fallback for Anthropic/OpenAI/Google when live API unavailable | Already installed; provides 44 models across 5 providers |
+| Zod | Yes | Extend schemas for `notes` field; new `createPresetSchema` | Same validation pattern already in `src/lib/validations.ts` |
+| Base UI Select + Dialog + Textarea | Yes | Model picker dropdown, edit UI, notes input | All components exist in `src/components/ui/` |
 
-**Quality conversations / prompting improvements:** System prompt changes to `ContextService.buildContext()`. No new library required.
+---
 
-**Tech debt cleanup:** TypeScript compiler + Biome. Both already installed.
+## Feature-Specific Implementation Notes
+
+### Feature 1: Agent Editing
+
+**Backend status:** Complete. `PUT /api/agents/[agentId]` already exists with `updateAgentSchema` validation. The route correctly updates and returns the modified agent.
+
+**What is missing:** UI only. The agents list page has no edit trigger. The existing `AgentForm` component and all validation already support edit — it needs only a new page or dialog wired to the existing PUT route.
+
+**Recommended approach:** Add `/agents/[agentId]/edit` page that fetches the agent by ID (via `GET /api/agents/[agentId]`) and renders `AgentForm` pre-populated. Same pattern as the existing `/agents/new` page.
+
+**No new dependencies.**
+
+---
+
+### Feature 2: Model Picker Dropdown
+
+This is the only feature requiring new server-side logic. All five providers expose a model-listing REST endpoint.
+
+#### Provider Model API Summary
+
+| Provider | Endpoint | Auth Method | Response Shape |
+|----------|----------|-------------|----------------|
+| Anthropic | `GET https://api.anthropic.com/v1/models` | Header: `X-Api-Key: <key>` + `anthropic-version: 2023-06-01` | `{ data: [{ id, display_name, ... }] }` |
+| OpenAI | `GET https://api.openai.com/v1/models` | Header: `Authorization: Bearer <key>` | `{ data: [{ id, object, ... }] }` |
+| Google | `GET https://generativelanguage.googleapis.com/v1beta/models?key=<key>` | Query param `key` | `{ models: [{ name, displayName, ... }] }` |
+| OpenRouter | `GET https://openrouter.ai/api/v1/models` | Header: `Authorization: Bearer <key>` | `{ data: [{ id, name, ... }] }` |
+| Ollama | `GET {baseUrl}/api/tags` | None (local service) | `{ models: [{ name, model, ... }] }` |
+
+All endpoints verified against official documentation (sources below). HIGH confidence.
+
+#### Architecture Decision: Server-Side Proxy Route
+
+Implement `GET /api/providers/[provider]/models` in Next.js that:
+1. Reads the provider's API key and baseUrl from the `providerKeys` SQLite table (same DB lookup pattern as existing routes)
+2. Calls the upstream endpoint with native `fetch`
+3. Returns normalized `{ models: Array<{ id: string; name: string }> }`
+4. Returns `{ models: [], error: "Provider not configured" }` gracefully when unconfigured
+
+**Why server-side proxy:** The API key must never be sent to the browser. The client-side model picker calls `/api/providers/[provider]/models` which reads the key from the DB and proxies upstream. This matches the existing security model for provider keys.
+
+**Why NOT the Vercel AI SDK for model listing:** The `ai` package and provider SDK wrappers (`@ai-sdk/anthropic`, etc.) are inference-only — they wrap `streamText`/`generateText` and do not expose model-discovery APIs. Direct `fetch` is the correct tool.
+
+#### `llm-info` as Static Fallback
+
+`llm-info`'s `getAllModelsWithIds()` returns 44 models with a `provider` field covering `openai`, `anthropic`, `google`, `deepseek`, and `xai`. It has **no models for `openrouter` or `ollama`** (verified by direct runtime inspection of `node_modules/llm-info/dist/index.js`).
+
+Use this as a fallback only when: the API call fails OR the provider key is unconfigured. Do not use as the primary source — provider APIs are authoritative and more current.
+
+#### OpenRouter Scale Note
+
+OpenRouter lists 400+ models. For the model picker UI, the existing Base UI Select populates a dropdown from a `useEffect` fetch. This is functional but may be slow to scroll. A searchable combobox would be better UX for OpenRouter specifically but is a UX enhancement, not a correctness requirement. Implement plain `<select>` first.
+
+**No new npm packages.**
+
+---
+
+### Feature 3: Agent Presets CRUD
+
+**Current state:** Presets are hardcoded in `src/components/agents/AgentPresets.ts` as a TypeScript constant array `AGENT_PRESETS`. The `agents.preset_id` column already exists in the schema but only stores a string reference to these hardcoded IDs.
+
+**Decision: Persist presets to SQLite.** "CRUD" requires persistence — a hardcoded array cannot be mutated at runtime. The `presetId` foreign-key-like field on `agents` already anticipates this.
+
+#### New DB Table
+
+```sql
+CREATE TABLE presets (
+  id         TEXT    PRIMARY KEY,  -- nanoid
+  name       TEXT    NOT NULL,
+  avatar_color TEXT  NOT NULL,
+  avatar_icon  TEXT  NOT NULL,
+  prompt_role        TEXT NOT NULL,
+  prompt_personality TEXT,
+  prompt_rules       TEXT,
+  prompt_constraints TEXT,
+  provider   TEXT    NOT NULL,
+  model      TEXT    NOT NULL,
+  temperature REAL   NOT NULL DEFAULT 0.7,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+```
+
+**Seed the existing 3 presets** (Devil's Advocate, Code Reviewer, Researcher) into this table during the migration so current behavior is preserved.
+
+#### New API Routes
+
+Same REST pattern as `/api/agents`:
+- `GET /api/presets` — list all presets
+- `POST /api/presets` — create preset
+- `PUT /api/presets/[presetId]` — update preset
+- `DELETE /api/presets/[presetId]` — delete preset
+
+The existing `/agents/new?preset=<id>` page URL pattern can stay — just look up the preset from the DB instead of the hardcoded array.
+
+**No new npm packages.**
+
+---
+
+### Feature 4: Dedicated Providers Page
+
+**Current state:** The Settings page (`/settings`) is already exclusively a provider management page — it renders `ProviderCard` components and nothing else. Moving it to `/providers` is a routing change, not a capability change.
+
+**Implementation:**
+- Add `src/app/(dashboard)/providers/page.tsx` copying the Settings page content
+- Update sidebar navigation to add "Providers" link
+- Either redirect `/settings` → `/providers` (Next.js `permanentRedirect`) or repurpose Settings for future global app settings
+
+**The `ProviderCard` component, all provider API routes, and the `providerKeys` DB table remain unchanged.**
+
+**No new npm packages.**
+
+---
+
+### Feature 5: Agent Notes
+
+**Current state:** The `agents` table has no `notes` column. The `roomAgents` table (copy-on-assign snapshot) also lacks it.
+
+**Schema change:** Add `notes TEXT` (nullable) to both `agents` and `roomAgents`.
+
+**Migration:** `npx drizzle-kit generate && npx drizzle-kit migrate` generates `ALTER TABLE agents ADD COLUMN notes TEXT`. Non-destructive in SQLite.
+
+**Decision on `roomAgents.notes`:** The copy-on-assign pattern copies all agent fields to `roomAgents` at assignment time for snapshot integrity. Notes should be copied too — the room snapshot should reflect the agent as it was when assigned, including its notes.
+
+**Validation:** Add `notes: z.string().max(2000).nullable().optional()` to `createAgentSchema` and `updateAgentSchema` in `src/lib/validations.ts`.
+
+**UI:** A `<Textarea>` in `AgentForm` below the prompt constraint fields. The `textarea.tsx` component already exists.
+
+**No new npm packages.**
+
+---
+
+## Database Changes Summary
+
+All applied via `npx drizzle-kit generate && npx drizzle-kit migrate` (generates SQL migration files in `src/db/migrations/`):
+
+| Change | Table | SQL Operation | Destructive? |
+|--------|-------|---------------|-------------|
+| Add `notes` column | `agents` | `ALTER TABLE ADD COLUMN` | No |
+| Add `notes` column | `roomAgents` | `ALTER TABLE ADD COLUMN` | No |
+| Create `presets` table | (new) | `CREATE TABLE` | No |
+| Seed existing 3 presets | `presets` | `INSERT` in seed script | No |
+
+**Note on `drizzle-kit push` vs `generate`+`migrate`:** This project has historically used `drizzle-kit push` (no migration files). For v1.2, prefer `generate`+`migrate` to produce an auditable migration file, especially since a new table is being added. Either works for SQLite.
+
+---
+
+## New API Routes Required
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/providers/[provider]/models` | GET | Fetch available models from provider; returns `{ models: [{id, name}] }` |
+| `/api/presets` | GET | List all presets |
+| `/api/presets` | POST | Create preset |
+| `/api/presets/[presetId]` | PUT | Update preset |
+| `/api/presets/[presetId]` | DELETE | Delete preset |
+
+---
+
+## Supporting Libraries
+
+None needed. Decision table for libraries considered and rejected:
+
+| Considered | Verdict | Reason |
+|------------|---------|--------|
+| `@tanstack/react-query` | SKIP | Model list fetching is a simple `useEffect` + `useState` pattern. The codebase uses this pattern everywhere consistently. Adding react-query for one or two async fetches breaks consistency without adding value at this scale. |
+| `cmdk` (Command/Combobox) | SKIP | Useful for OpenRouter's 400+ model list but not a correctness requirement. Base UI Select with dynamic options works. If added later, `cmdk` is zero-dependency and compatible with Base UI. |
+| `react-hook-form` | SKIP | `AgentForm` already uses controlled state. Introducing RHF requires rewriting the form. The existing pattern works and is consistent. |
+| SWR or TanStack Query | SKIP | Same rationale as react-query — single-purpose, self-contained fetch patterns are already the project standard. |
+| `axios` or `ky` | SKIP | Native `fetch` is available in Node.js 18+ and the browser. No HTTP client library adds value here. |
+
+---
+
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Vercel AI SDK for model listing | The `ai` package and `@ai-sdk/*` wrappers are inference-only — no model-discovery APIs exposed | Direct native `fetch` to provider REST endpoints |
+| Caching model lists in a module-level variable | Ollama model availability changes when user runs `ollama pull`; provider models are released continuously | Fetch on demand per request from the `/api/providers/[provider]/models` route |
+| Storing computed or derived data in the preset | Presets are templates — store only the raw fields; derived display values computed at render time | Store raw fields only |
+| `llm-info` as primary model source | Covers only 5 providers, 44 models, may lag releases by weeks; no OpenRouter or Ollama entries | Provider APIs as primary, `llm-info` as fallback |
+| Sending provider API keys to the browser | Security risk — keys in localStorage or props are visible to the user and any XSS | All provider key reads must remain server-side in API routes |
+| Global Zustand store for model lists | Model lists are per-provider, fetched per-form-open, component-local — not shared application state | Component-local `useState` + `useEffect` fetch |
+
+---
+
+## Version Compatibility
+
+No new packages = no new compatibility surface to manage.
+
+The only relevant compatibility check: `drizzle-kit@0.31.10` with SQLite handles `ALTER TABLE ADD COLUMN` and `CREATE TABLE` correctly. This has been the established migration tool in this project since v1.0.
 
 ---
 
 ## Installation
 
 ```bash
-# The only new install for v1.1
-npm install llm-info
+# No new packages for v1.2.
+# Run migration after schema changes:
+npx drizzle-kit generate
+npx drizzle-kit migrate
 ```
-
----
-
-## Integration Points
-
-### Cost Estimation — `llm-info`
-
-`llm-info` exports `ModelInfoMap` as a plain object keyed by model ID strings (matching `ModelEnum` values like `"claude-sonnet-4-20250514"`). The app already stores `model` as a string per message in the `messages` table. Integration is a lookup utility — no new API calls, no async, pure computation:
-
-```typescript
-import { ModelInfoMap } from 'llm-info';
-
-export function estimateCost(
-  modelId: string,
-  inputTokens: number | null,
-  outputTokens: number | null
-): number | null {
-  if (!inputTokens || !outputTokens) return null;
-  const info = ModelInfoMap[modelId as keyof typeof ModelInfoMap];
-  if (!info?.pricePerMillionInputTokens || !info?.pricePerMillionOutputTokens) return null;
-  return (inputTokens / 1_000_000) * info.pricePerMillionInputTokens
-       + (outputTokens / 1_000_000) * info.pricePerMillionOutputTokens;
-}
-```
-
-**Provider coverage by current app providers:**
-
-| App Provider | llm-info Coverage | Display |
-|-------------|------------------|---------|
-| `anthropic` | YES — claude-sonnet-4, claude-opus-4, claude-haiku-4-5 family | USD cost |
-| `openai` | YES — gpt-4o, gpt-4.1, gpt-5 family | USD cost |
-| `google` | YES — gemini-2.5-pro, gemini-2.5-flash family | USD cost |
-| `openrouter` | NO — OpenRouter is a passthrough; per-request routing determines actual model | Show "N/A" |
-| `ollama` | NO — local inference, free | Show "local" |
-
-**Pricing staleness (MEDIUM confidence):** `llm-info` is community-maintained and may lag official pricing by 2–4 weeks per model change. Verified sample: `claude-sonnet-4-20250514` shows $3/$15 per million tokens. This is within normal range for a personal cost-awareness tool — not billing software. Add a UI disclaimer: *"Cost estimates based on approximate published pricing."*
-
-**Cost display approach:** Compute at read time from stored `inputTokens`/`outputTokens`. Do not store computed costs in DB — they are fully derivable and pricing data changes. Expose per-message cost via the existing room messages API response (add `estimatedCost` to the DTO), and aggregate room total in the room detail endpoint.
-
----
-
-### Parallel First Round
-
-**Schema change required:** Add `parallelFirstRound` boolean column to `rooms` table.
-
-```typescript
-// In schema.ts — rooms table addition
-parallelFirstRound: integer('parallel_first_round', { mode: 'boolean' })
-  .notNull()
-  .default(false),
-```
-
-Apply via `npx drizzle-kit push` (no migration file needed for this personal local-only app — already the established pattern).
-
-**ConversationManager change:** When `room.parallelFirstRound === true` and `turnCount === 0`, fire all agents simultaneously instead of sequentially:
-
-```typescript
-// Conceptual — round 1 parallel pattern
-const results = await Promise.allSettled(
-  agents.map(agent => runAgentTurn(agent, roomId, controller))
-);
-// Then continue with sequential turns for rounds 2+
-```
-
-The existing SSE infrastructure handles concurrent streaming correctly — each event carries `agentId` so the client routes tokens to the right message slot. No client-side changes needed for this feature beyond displaying that agents responded in parallel.
-
-**UI addition:** Toggle in room config (EditRoomDialog) for "Parallel first round." Stored in DB, displayed in room settings.
-
----
-
-### Convergence Detection
-
-No schema change. Add `ContextService.detectConvergence()` as a static method.
-
-**Algorithm (2-signal AND logic):**
-
-1. Load the last `agentCount` agent messages (one full round)
-2. **Signal 1 — Agreement phrases:** Scan each message for agreement keywords. If ≥ `floor(agentCount / 2) + 1` agents use agreement language in their most recent message, signal is true.
-   - Phrase set (configurable constant): `["i agree", "we agree", "we've reached", "consensus", "in conclusion", "i think we all", "everyone agrees", "agreed", "i concur", "we concur"]`
-3. **Signal 2 — Content convergence:** Compute pairwise Jaccard similarity between all last-round messages using the existing `jaccardSimilarity()` function. If average ≥ `CONVERGENCE_THRESHOLD` (0.35), signal is true. (Lower than `REPETITION_THRESHOLD` of 0.85 — convergence means agreement, not word-for-word copying.)
-4. Return `converged: true` if **both** signals are true. AND logic reduces false positives.
-
-**Integration in `ConversationManager`:** Call after the last agent in each round completes (after `turnCount % agentCount === agentCount - 1`). When converged: stop loop, set status to `idle`, insert system message `[Conversation converged: agents reached consensus]`, emit `status` SSE event.
-
-**Why AND logic:** Agreement phrases alone fire on sycophantic responses ("I agree with everything you said" as hollow filler). Content similarity alone fires when agents are all being brief. Both together indicate genuine convergence.
-
----
-
-## Schema Changes Summary
-
-| Table | Column | Type | Default | Reason |
-|-------|--------|------|---------|--------|
-| `rooms` | `parallelFirstRound` | `integer` (boolean mode) | `false` | Parallel first round config toggle |
-
-No other schema changes for v1.1. Cost estimation is runtime-computed from existing columns. Convergence detection changes only behavioral flow (uses existing `status` column).
-
----
-
-## Alternatives Considered
-
-| Feature | Recommended | Alternative | Why Not |
-|---------|-------------|-------------|---------|
-| Cost pricing data | `llm-info` static package | Fetch from provider pricing APIs at runtime | No public pricing APIs with programmatic access for Anthropic/OpenAI. Adds network calls, latency, and failure modes. |
-| Cost pricing data | `llm-info` static package | Hard-coded pricing constants in codebase | `llm-info` has 70 version updates tracking model launches. Hand-coded requires manual updates per new model. |
-| Cost pricing data | `llm-info` static package | `tokenlens@1.3.1` (alternative package) | `tokenlens` has 4 dependencies vs. `llm-info`'s zero. `llm-info` has cleaner TypeScript types (`pricePerMillionInputTokens` directly on `ModelInfo`). Both are viable; `llm-info` is leaner. |
-| Convergence detection | Keyword + Jaccard in `ContextService` | LLM-as-judge (ask a model "did agents agree?") | Adds ~2s latency per check, costs real tokens on every round, introduces model-specific sycophancy. Deterministic keyword approach is instant and free. |
-| Convergence detection | Keyword + Jaccard | Semantic embeddings (cosine similarity of vectors) | Embedding an API call per message check is overkill for 3–8 message windows. Jaccard on word tokens already captures topical overlap well at this scale. |
-| Parallel first round | IIFE + `Promise.allSettled` | Worker threads, background jobs | Massively overcomplicated. LLM calls are I/O-bound — Node.js async handles true concurrency for I/O. No CPU-bound work here. |
-
----
-
-## What NOT to Add
-
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| `tiktoken` or tokenizer libraries | Token counts already come from provider API responses (stored as `inputTokens`/`outputTokens` in `messages`). Adding a tokenizer would re-count what providers already report. | Use existing DB columns |
-| OpenRouter pricing lookup | OpenRouter routes to different underlying models per request; the model ID in the response is the routed model, not a fixed one. Static pricing is meaningless. | Show "N/A" for OpenRouter agents |
-| Persist computed cost in DB | Cost = `f(tokens, price_per_million)`. Both inputs already stored or derivable. Persisting derived values creates drift when pricing data changes. | Compute in API response layer at read time |
-| `langchain` / LangGraph | Importing LangChain for convergence detection would pull 100+ transitive deps for 20 lines of logic already cleanly owned in `ContextService`. | Extend `ContextService` directly |
-| New SSE event types for parallel round | The existing `turn:start` + `token` + `turn:end` events already carry `agentId`. Client already handles concurrent streams. No new protocol needed. | Reuse existing event types |
-
----
-
-## Version Compatibility
-
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| `llm-info@1.0.69` | TypeScript `^5.9.3` | Zero runtime deps. Ships dual ESM + CJS build. Works with Next.js 16 App Router `import` statements. |
-| `llm-info@1.0.69` | Node 18+ | No compatibility issues found. |
-| `drizzle-kit@0.31.10` | `better-sqlite3@12.x` | `npx drizzle-kit push` for schema changes — established pattern in this project. No migration files needed. |
 
 ---
 
 ## Sources
 
-- `https://www.npmjs.com/package/llm-info` — Package metadata: 70 versions, zero deps, MIT, last published 3 months ago. Package source inspected locally: `ModelInfoMap`, `ModelInfo` type with `pricePerMillionInputTokens`/`pricePerMillionOutputTokens` fields, provider coverage verified (anthropic, openai, google). **HIGH confidence.**
-- Anthropic pricing page (`https://platform.claude.com/docs/en/about-claude/pricing`) — Cross-referenced Claude Sonnet 4 at $3/$15 per million tokens. `llm-info` data consistent with official pricing. **HIGH confidence.**
-- [Multiple Parallel AI Streams with the Vercel AI SDK](https://mikecavaliere.com/posts/multiple-parallel-streams-vercel-ai-sdk) — IIFE pattern for parallel `streamText` calls without blocking. **MEDIUM confidence.**
-- [ACL 2025 CONSENSAGENT](https://aclanthology.org/2025.findings-acl.1141/) — Keyword phrase + content similarity approach for multi-agent consensus detection is research-validated. **MEDIUM confidence.**
-- [pricepertoken.com](https://pricepertoken.com/) — Cross-reference for current pricing ranges. **LOW confidence (aggregator, not official).**
+- Ollama model listing API — `GET /api/tags` returns `{ models: [{name, model, size, ...}] }`, no auth required — **HIGH confidence** — https://docs.ollama.com/api/tags
+- OpenRouter model listing API — `GET /api/v1/models` with `Authorization: Bearer <key>` returns `{ data: [{id, name, ...}] }`, 400+ models — **HIGH confidence** — https://openrouter.ai/docs/api/api-reference/models/get-models
+- Anthropic model listing API — `GET https://api.anthropic.com/v1/models` with `X-Api-Key` + `anthropic-version` headers — **HIGH confidence** — https://platform.claude.com/docs/en/api/models/list
+- OpenAI model listing API — `GET https://api.openai.com/v1/models` with Bearer auth — **HIGH confidence** — https://platform.openai.com/docs/api-reference/models/list
+- Google Gemini model listing — `GET https://generativelanguage.googleapis.com/v1beta/models?key=<key>` — **HIGH confidence** — https://ai.google.dev/gemini-api/docs/models
+- `llm-info@1.0.69` runtime inspection — `getAllModelsWithIds()` returns 44 models; providers covered: `openai`, `anthropic`, `google`, `deepseek`, `xai`; no `openrouter` or `ollama` entries — **HIGH confidence** (direct `node -e` verification)
+- Codebase direct inspection — existing `PUT /api/agents/[agentId]`, `updateAgentSchema`, `AgentPresets.ts`, `providerKeys` table, component inventory — **HIGH confidence**
 
 ---
 
-*Stack research for: Agents Room v1.1 — conversation quality, cost estimation, parallel first round, convergence detection*
-*Researched: 2026-03-20*
+*Stack research for: Agents Room v1.2 — Agent Management milestone*
+*Researched: 2026-03-21*

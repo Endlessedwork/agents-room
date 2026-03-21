@@ -1,22 +1,21 @@
 # Feature Research
 
-**Domain:** Multi-agent AI chat room — v1.1 Conversation Quality & Polish milestone
-**Researched:** 2026-03-20
-**Confidence:** HIGH for cost estimation and parallel first round (well-documented patterns); MEDIUM for convergence detection (requires design decisions); MEDIUM for quality improvements (subjective, prompt-engineering dependent)
+**Domain:** Agent management features for multi-agent LLM conversation app (v1.2 milestone)
+**Researched:** 2026-03-21
+**Confidence:** HIGH
 
----
+## Context: What Already Exists
 
-## Context: What Is Already Built (v1.0)
+This is a subsequent milestone. The following is already built and working:
 
-The following features are **complete** and are dependencies, not targets, for this milestone:
-
-- Room & agent CRUD, 5 LLM providers, copy-on-assign agent binding
-- Autonomous multi-agent conversation with turn limits, sliding window context (20 msgs)
-- Repetition detection (Jaccard similarity) with auto-pause
-- Real-time SSE streaming, thinking indicators, user message injection
-- Token usage display, on-demand summaries, MD/JSON export
-- Round-robin and LLM-selected speaker strategies
-- Room configuration UI (turn limit slider, speaker strategy select), edit room settings
+- Agent create/delete with structured prompts (role, personality, rules, constraints) and avatar
+- Model specified as free-text string per agent (no dropdown, no validation)
+- Provider key management embedded in Settings page (with test-connection)
+- 3 hardcoded preset templates (Devil's Advocate, Code Reviewer, Researcher) rendered as read-only cards with a "Use Template" link — cannot be edited or deleted
+- Copy-on-assign agent-to-room binding
+- PUT `/api/agents/:agentId` route already exists (`updateAgentSchema` is `createAgentSchema.partial()`)
+- Schema has `presetId` column on `agents` table (nullable string)
+- `providerKeys` table fully functional with status tracking
 
 ---
 
@@ -24,90 +23,93 @@ The following features are **complete** and are dependencies, not targets, for t
 
 ### Table Stakes (Users Expect These)
 
-Features the v1.1 user expects to see. Missing these makes the milestone feel incomplete.
-
-| Feature | Why Expected | Complexity | Dependency on Existing |
-|---------|--------------|------------|------------------------|
-| Cost estimation per room | Token counts already displayed; showing "$0.003" next to "143 tokens" is the natural completion. Users running multiple agents × multiple turns need cost awareness to regulate behavior. | LOW-MEDIUM | Depends on per-message token counts (built). Requires a static pricing table keyed by provider+model. |
-| Convergence auto-stop | Users start conversations to reach conclusions. Without auto-stop, they rely on turn limits alone. Users expect the system to recognize "they've agreed" without manual monitoring. | MEDIUM | Depends on autonomous conversation loop and pause/stop controls (built). Adds a check after each round. |
-| Tech debt cleanup | Dead files, type errors, and over-fetching are visible to the developer. A "quality" milestone that ignores internal quality is incomplete. | LOW | Depends on knowing what debt exists: orphaned ConversationPanel.tsx, test type errors, room detail over-fetching. |
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Agent editing | Any CRUD app supports edit. A library of agents with no edit forces delete-and-recreate — obviously broken workflow. | LOW | API route already exists. Need: edit page/dialog + Edit button on AgentCard. AgentForm must become reusable for both create and edit modes. |
+| Model picker dropdown | Free-text model input is error-prone. Every serious LLM tool (ChatGPT, LM Studio, Open WebUI, TypingMind) provides a model picker. The current free-text field silently accepts misspelled model names that only fail at runtime during a conversation. | MEDIUM | Requires server-side proxy routes per provider. Fallback to free-text if fetch fails or provider unconfigured. See provider API reference section below. |
+| Dedicated Providers page | Settings pages with mixed concerns are confusing. Provider management is a distinct, frequently-needed action (checking connection status, rotating keys) and deserves its own route. | LOW | Move existing ProviderCard components from `/settings` to `/providers`. The ProviderCard component is fully functional — this is a navigation and layout change, not a new feature. Add sidebar nav link. |
+| Agent notes | Users build libraries of agents and need to track why each exists, when to use it, known strengths and weaknesses. Without notes, context is lost when the agent name alone is not self-explanatory. | LOW | Requires: `notes` column added to `agents` table (TEXT, nullable), migration, field in AgentForm, display in AgentCard. Notes are library-level metadata — do NOT copy to roomAgents (room agents are operational copies, not annotated entries). |
 
 ### Differentiators (Competitive Advantage)
 
-Features that make the v1.1 milestone meaningfully better than v1.0 — the core reason for the milestone.
-
-| Feature | Value Proposition | Complexity | Dependency on Existing |
-|---------|-------------------|------------|------------------------|
-| Independent parallel first round | Eliminates herding — agents anchor on the first response in sequential mode. Running round 1 blind (no peer visibility) produces genuine divergence before agents see each other. Research on Multi-Agent Debate (MAD) confirms this as the canonical technique for getting independent perspectives. | HIGH | Depends on autonomous conversation loop (built). Requires orchestrator to fan-out N parallel LLM calls, collect all responses, then inject them into the shared context before round 2. Conflicts with the current sequential orchestrator flow. |
-| Conversation quality improvements via prompt engineering | Better system-prompt structure + role mandates produce substantive disagreement instead of agreement-by-default. LLMs default to sycophancy; explicit "challenge the previous point" instructions or role-encoded skepticism counteract this. | MEDIUM | Depends on per-agent structured prompt fields (built: role, personality, rules, constraints). Improvement is achieved by changing prompt composition in ConversationManager, not new data structures. |
-| Cost estimation display (formatted, with provider pricing) | Showing actual dollar amounts (e.g., "$0.012 this session") gives the user immediate cost feedback for each room. This is purely additive to the existing token display — high value, low risk. | LOW-MEDIUM | Depends on token counts per message (built). Requires a pricing lookup: `{ provider, model } → { inputCostPerMTok, outputCostPerMTok }`. Static JSON table is sufficient; no external API call needed. |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| User-created preset CRUD | Built-in presets are hardcoded in a .ts file — they cannot be modified, deleted, or created by the user. Allowing users to save agents as named presets turns the library into a composition tool: design a persona once, reuse across rooms with one click. | MEDIUM | Two flows: (1) "Save as preset" action on an existing agent — writes a record to a new `presets` table. (2) Preset management — list, rename, delete user presets. System presets (hardcoded) remain separate from user-defined ones to avoid migration complexity. Requires new DB table. |
+| Model picker with search/filter | OpenRouter exposes 400+ models. A flat dropdown is unusable at that scale. Filtering by name or modality makes the picker practical. | LOW-MEDIUM | Only valuable for OpenRouter. For Anthropic/OpenAI/Google, model lists are short enough that filtering is unnecessary. For Ollama, list reflects only locally-pulled models. Add a search input to the dropdown for OpenRouter only. |
+| Provider connection status inline in agent form | When configuring an agent, knowing the selected provider's connection status (verified / not configured) prevents saving an agent that will fail at runtime. | LOW | Read from existing providerKeys data already available via `/api/providers`. Show a status dot next to the provider select. No new API route needed. |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Dynamic pricing via external API | "Show real-time current pricing" | Provider pricing changes infrequently (weeks/months). An API call per room load adds latency, a new failure mode, and a dependency. The benefit over a manually updated static table is near zero. | Static pricing table, versioned in code, updated manually when providers change. Flag stale data with a "last updated" comment. |
-| LLM-as-judge for convergence | "Use an LLM to decide if consensus is reached" | Adds a full extra LLM API call per round — doubles API cost just for convergence checking. Adds latency per turn. Introduces a new failure mode (judge call fails). | Semantic similarity between agent responses (cosine similarity on embeddings or TF-IDF) — cheaper, local, no extra API call. For a personal tool, 80% precision is acceptable. |
-| Streaming parallel first round | "Show each agent's first-round response as it streams" | The UX value is unclear — agents are responding simultaneously, so showing partial responses from multiple agents simultaneously creates confusion. | Show all first-round responses when the last one completes. Brief "Agents forming independent views..." indicator during parallel phase. |
-| Semantic embedding service for convergence | "Use a proper embedding model for similarity" | Requires either a local embedding model (setup complexity) or an additional API call per convergence check. | Jaccard similarity (already implemented for repetition detection) or cosine similarity on simple TF-IDF vectors. These are good enough for detecting agent agreement without external dependencies. |
-| Per-agent cost breakdown | "Show cost per agent, not just per room" | Marginal value over per-room total; adds UI complexity. Users care about total session cost first. | Show room-level total; break down by agent only if user explicitly requests it (future). |
+| Auto-save agent fields on blur | Feels modern and frictionless | Partial saves during multi-field edits can leave agents in invalid states; the PUT route validation requires at least `name` and `promptRole` — intermediate blur states may fail validation silently | Explicit save button with loading state (already the pattern in the codebase) |
+| Real-time model list refresh in dropdown | Ensure dropdown always shows current models | Provider APIs can be slow or rate-limited; adds latency to every form open; for Ollama, list changes only when user pulls a model locally | Fetch once on form open; provide a manual "refresh" button if the user needs to re-fetch |
+| Sync agent library edits to existing room agents | Prevent stale room agent configs | Breaks the copy-on-assign design decision made deliberately in v1.0; room conversations in progress would have configs mutated under them mid-conversation | Copy-on-assign is the correct design — add a UI note: "Editing this agent won't affect rooms already using it" |
+| Cascade-delete presets when agents reference them | Cleanup feels natural | Agents referencing a deleted preset would need their presetId nulled out; cascading logic adds failure paths | Allow preset deletion, null out `presetId` on orphaned agents (set-null FK pattern, already used for `sourceAgentId` on roomAgents) |
+| Live model search via typeahead against provider API | Feels responsive | Provider APIs are not designed for typeahead; rate limiting and latency make this impractical; increases API usage costs | Fetch full model list once on form open, filter client-side |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Cost estimation display]
-    └──requires──> [Token counts per message]     ← already built (v1.0)
-    └──requires──> [Pricing table: provider+model → $/MTok]   ← NEW static data
+Agent Editing
+    └──requires──> AgentForm refactored into create/edit modes
+                       └──enables──> Agent Notes field (appears in same form)
+                       └──enables──> "Save as Preset" action (acts on an existing edited agent)
+    └──unblocks──> User Preset CRUD (preset management UX assumes agents can be edited)
 
-[Independent parallel first round]
-    └──requires──> [Autonomous conversation loop] ← already built (v1.0)
-    └──requires──> [Orchestrator fan-out logic]   ← NEW: run N calls in parallel
-    └──requires──> [Context merge after round 1]  ← NEW: inject all round-1 responses into shared context
-    └──conflicts──> [Round-robin speaker selection for round 1]  ← round-robin is sequential; parallel bypasses it
+Model Picker Dropdown
+    └──requires──> Server-side proxy route: GET /api/providers/:provider/models
+                       └──requires──> providerKeys with stored API keys (already exists)
+    └──integrates into──> AgentForm (model field becomes picker, same form used for create + edit)
+    └──independent of──> Agent Editing (can be built in parallel)
 
-[Convergence detection]
-    └──requires──> [Autonomous conversation loop] ← already built (v1.0)
-    └──requires──> [Pause/stop controls]          ← already built (v1.0)
-    └──requires──> [Similarity scoring per round] ← NEW: compare agent responses after each round
-    └──enhances──> [Turn limit]                   ← convergence is the soft stop; turn limit is the hard stop
+Agent Notes
+    └──requires──> DB migration (add notes TEXT column to agents table)
+    └──requires──> AgentForm refactored for edit mode (same form renders notes field)
+    └──independent of──> Model Picker, Presets, Providers page
 
-[Conversation quality improvements]
-    └──requires──> [Structured agent prompt fields (role, rules, constraints)] ← already built (v1.0)
-    └──enhances──> [Independent parallel first round] ← parallel + good prompts = best independence
-    └──enhances──> [Convergence detection]            ← quality conversations converge meaningfully, not vacuously
+Dedicated Providers Page
+    └──requires──> New route /providers + sidebar nav link
+    └──requires──> Move ProviderCard usage from settings/page.tsx to providers/page.tsx
+    (no cross-dependencies — fully self-contained)
 
-[Tech debt cleanup]
-    └──requires──> [Identifying orphaned files]   ← ConversationPanel.tsx
-    └──requires──> [Identifying type errors]      ← test files
-    └──requires──> [Identifying over-fetching]    ← room detail endpoint
+User Preset CRUD
+    └──requires──> New presets table + DB migration
+    └──requires──> Agent Editing (natural flow: edit agent → save as preset)
+    └──enhances──> Agent Library (user presets appear alongside hardcoded ones in the templates section)
 ```
 
 ### Dependency Notes
 
-- **Parallel first round requires orchestrator refactor:** The current orchestrator is sequential (select speaker → call LLM → broadcast → repeat). Parallel first round requires a new code path: fan-out all agents simultaneously, wait for all to complete, then merge into context. This is the highest-complexity item in the milestone.
-- **Convergence detection does NOT require LLM-as-judge:** Jaccard similarity (already in the codebase for repetition detection) can be repurposed. Convergence = high similarity between different agents (they're saying the same thing). Repetition = high similarity between the same agent across turns. Same technique, different comparison axis.
-- **Cost estimation is independent:** Can be built and shipped without any other milestone feature. Zero risk of breaking existing behavior. Build this first.
-- **Quality improvements are prompt-only:** No new data structures, no new API routes. Changes are in the prompt composition layer (ConversationManager). Low risk.
+- **Agent editing requires AgentForm refactor:** The current AgentForm always POSTs to `/api/agents`. For edit mode it must accept an `agent` prop, prefill all fields, and PUT to `/api/agents/:agentId` on submit. This is the central refactor that unlocks notes and presets.
+- **Model picker requires a proxy route:** Provider APIs require the stored API key, which must be injected server-side. A direct client-side fetch would expose keys or fail CORS. Pattern: `GET /api/providers/:provider/models` fetches the provider API using the stored key and returns a normalized list.
+- **Notes requires only a DB migration:** One nullable TEXT column on `agents`. The column is not added to `roomAgents` — room agents are operational copies, not the annotated source record.
+- **Dedicated providers page has no cross-dependencies:** Can be built first in any phase without affecting other features. Recommended as a quick win to start the milestone.
+- **User preset CRUD is the most design-heavy feature:** Requires deciding how user presets are displayed alongside system presets, whether presets are editable in place, and what "delete preset" means for agents that used it.
 
 ---
 
-## MVP Definition for v1.1
+## MVP Definition
 
-### Ship in v1.1 (this milestone)
+### This Milestone (v1.2) — All Five Features
 
-- [x] **Cost estimation display** — high value, low risk, independent of other features. Token counts exist; add pricing table and display formatted cost.
-- [x] **Conversation quality improvements** — prompt-engineering changes in ConversationManager. No schema changes, no new routes.
-- [x] **Independent parallel first round** — core differentiator of this milestone. Requires orchestrator changes but builds on existing infrastructure.
-- [x] **Convergence detection** — completes the "smart conversation" story. Soft-stop when agents agree; turn limit remains as hard stop.
-- [x] **Tech debt cleanup** — remove orphaned ConversationPanel.tsx, fix test type errors, fix room detail over-fetching.
+Recommended build order based on dependency graph and risk:
 
-### Defer to v1.2+
+- [ ] **Dedicated Providers page** — LOW complexity, zero risk, no dependencies. Move existing components to `/providers`.
+- [ ] **Agent editing** — LOW complexity (API exists). Central refactor that unblocks notes and presets.
+- [ ] **Agent notes** — TRIVIAL once editing form is refactored. One migration, one field.
+- [ ] **Model picker dropdown** — MEDIUM complexity. Isolated feature; parallel to notes. Highest implementation risk due to provider API variability.
+- [ ] **Agent presets CRUD** — MEDIUM complexity. Builds on editing. Comes last because it is the most UX-design-heavy and requires a new DB table.
 
-- **Per-agent cost breakdown** — v1.1 ships room-level totals; per-agent detail is low priority
-- **Asymmetric context injection** — useful but adds config surface area; validate quality improvements first
-- **Agent long-term memory** — too complex; out of scope per PROJECT.md
+### Defer to v2+
+
+- [ ] **Agent versioning** — Track history of prompt changes per agent. Requires a history table and diff UI.
+- [ ] **Agent import/export (JSON)** — Share agent configs across instances. No immediate need for a single-user personal tool.
+- [ ] **Bulk agent operations** — Delete multiple, assign multiple to a room simultaneously.
+- [ ] **Room agent editing** — Edit a room-specific copy of an agent without touching the library. High complexity, low immediate need.
+- [ ] **Agent tags/categories** — Organize larger libraries. Needed when library grows beyond ~20 agents.
 
 ---
 
@@ -115,119 +117,53 @@ Features that make the v1.1 milestone meaningfully better than v1.0 — the core
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Cost estimation display | HIGH | LOW | P1 |
-| Tech debt cleanup | MEDIUM (developer) | LOW | P1 |
-| Conversation quality improvements | HIGH | MEDIUM | P1 |
-| Independent parallel first round | HIGH | HIGH | P1 |
-| Convergence detection | MEDIUM | MEDIUM | P1 |
-| Per-agent cost breakdown | LOW | LOW | P3 |
-| Dynamic pricing via external API | LOW | MEDIUM | P3 |
-| Agent long-term memory | LOW | HIGH | P3 — out of scope |
+| Agent editing | HIGH | LOW | P1 |
+| Dedicated Providers page | HIGH | LOW | P1 |
+| Agent notes | MEDIUM | LOW | P1 |
+| Model picker dropdown | HIGH | MEDIUM | P1 |
+| User preset CRUD | MEDIUM | MEDIUM | P2 |
+| Provider status indicator in agent form | LOW | LOW | P3 — include if in same sprint as model picker |
+| Model list search/filter (OpenRouter) | LOW | LOW | P3 — include if model picker is built |
 
 **Priority key:**
-- P1: Ships in v1.1 milestone
-- P2: Consider for v1.2 if v1.1 scope allows
-- P3: Future consideration
+- P1: Must have for v1.2
+- P2: High confidence, include in v1.2 scope
+- P3: Nice to have, include if time permits within the milestone
 
 ---
 
-## Implementation Notes Per Feature
+## Provider Model API Reference
 
-### Cost Estimation
+Confirmed endpoints per provider (verified against official docs):
 
-**Pattern:** Static pricing table keyed by `provider:model` string → `{ inputCostPerMTok: number, outputCostPerMTok: number }`. Apply at message storage time or compute on read. Display as formatted currency (e.g., `$0.0042`).
+| Provider | List Models Endpoint | Auth | Response Key | Model ID Field |
+|----------|---------------------|------|--------------|----------------|
+| Anthropic | `GET https://api.anthropic.com/v1/models` | `X-Api-Key` header + `anthropic-version` header | `data` array | `id` field |
+| OpenAI | `GET https://api.openai.com/v1/models` | Bearer token | `data` array | `id` field |
+| Google | `GET https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}` | Query param API key | `models` array | `name` field (strip `models/` prefix) |
+| OpenRouter | `GET https://openrouter.ai/api/v1/models` | Bearer token (optional for public list) | `data` array | `id` field |
+| Ollama | `GET http://{host}/api/tags` | None (local) | `models` array | `name` field |
 
-**Coverage needed:**
-- Claude: claude-3-5-sonnet, claude-3-5-haiku, claude-3-opus (Anthropic pricing)
-- OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
-- Gemini: gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash
-- OpenRouter: pass-through (use underlying model price where known, else show "unknown")
-- Ollama: $0.00 (local, no cost)
+**Implementation pattern for proxy route:**
 
-**Staleness strategy:** Add a `// Pricing as of YYYY-MM-DD` comment. Display a small "estimated" disclaimer in the UI. This is a personal tool — approximate cost is fine.
+Each provider has a different response shape. The proxy route at `GET /api/providers/:provider/models` should normalize the response to a flat array of `{ id: string, name: string }` for uniform consumption by the dropdown. If the provider is unconfigured or the fetch fails, return a 503 or empty array — the form falls back to free-text input.
 
-**Confidence:** HIGH — this is a well-understood pattern. Token counts already stored per message.
+**OpenAI model list note:** The `/v1/models` endpoint returns all models including deprecated and fine-tuned ones. Filter to keep only chat-completion models by checking that the `id` contains common prefixes (`gpt-`, `o1`, `o3`, `o4`) or by checking `owned_by: "openai"`.
 
-### Independent Parallel First Round
-
-**Pattern (from Multi-Agent Debate literature):** Round 1 = all agents called in parallel with no peer context. Round 2+ = each agent sees all round-1 responses. This is "simultaneous-talk" mode from ChatEval research.
-
-**Orchestrator change:** Add a `parallelFirstRound: boolean` option per room. When true:
-1. Round 1: `Promise.all(agents.map(agent => callLLM(agent, systemPrompt, topic)))` — no agent sees others' responses
-2. Collect all round-1 responses
-3. Inject all responses into shared context
-4. Round 2+: proceed with existing sequential or LLM-selected speaker logic
-
-**UX during parallel phase:** Show "Agents forming independent views..." with a multi-agent thinking indicator. When all complete, display responses in sequence.
-
-**Conflict with round-robin:** For round 1 only, round-robin does not apply (all agents respond). For round 2+, resume selected strategy.
-
-**Confidence:** HIGH — the pattern is well-documented in MAD research. Implementation complexity is in the orchestrator fan-out and SSE broadcasting for parallel responses.
-
-### Convergence Detection
-
-**Pattern:** After each round, compare agent responses pairwise using similarity scoring. If average pairwise similarity exceeds a threshold (e.g., 0.85 on Jaccard or TF-IDF cosine), trigger auto-stop.
-
-**Algorithm choice — Jaccard (recommended):**
-- Already implemented in the codebase for repetition detection
-- Jaccard on word sets: `|A ∩ B| / |A ∪ B|`
-- Cheaper than embedding-based cosine similarity (no model needed)
-- Good enough for detecting semantic agreement in short agent messages
-- Threshold: 0.75–0.85 for convergence (higher than repetition detection threshold)
-
-**When to check:** After every complete round (all agents have responded once). Not after every single message — that would trigger too early.
-
-**What to do on convergence:**
-1. Auto-pause the conversation
-2. Display a "Convergence detected" notification with the round number
-3. Let user choose: stop here, or continue for more rounds
-4. Show a brief synthesis prompt (existing summary feature)
-
-**Edge cases:**
-- Two agents agreeing, one dissenting: only trigger if ALL pairwise similarities exceed threshold
-- Very short responses ("I agree") will score high on Jaccard — consider a minimum response-length guard (e.g., ignore responses under 20 words for convergence check)
-
-**Confidence:** MEDIUM — the approach is sound but threshold calibration requires testing. Initial threshold is a starting guess; the user may need to tune it.
-
-### Conversation Quality Improvements
-
-**What degrades quality:** LLMs default to agreement and elaboration. Without explicit role mandates, agents drift toward consensus after 2-3 turns regardless of the topic. This produces "shallow consensus" — not genuine insight.
-
-**Prompt engineering interventions (no schema changes needed):**
-
-1. **Mandate-based roles:** Each agent's system prompt should include an explicit epistemic stance: "You are the skeptic. Your job is to find flaws in any proposed solution." The current structured prompt fields (role, personality, rules, constraints) already support this — the improvement is in how the orchestrator composes them into the final system message.
-
-2. **Anti-agreement instruction injection:** Before round 2+, prepend a brief meta-instruction to each agent's user turn: "Review the other agents' responses critically. If you agree with them, state specifically WHY you agree and what evidence convinced you — do not simply echo agreement." This reduces vacuous agreement without requiring schema changes.
-
-3. **Topic-lock injection:** After every N turns (e.g., every 5 turns), inject a reminder of the original topic to prevent drift. This is a system message injected into the conversation by the orchestrator, not typed by the user.
-
-4. **Insight-surfacing prompt on summary:** The existing on-demand summary can be improved by changing the summary prompt to explicitly ask for "key insights, unresolved disagreements, and open questions" rather than a plain summary. Schema-free change.
-
-**Confidence:** MEDIUM — prompt engineering improvements are directionally correct but their actual quality impact is hard to predict without running conversations. Mark as "needs validation" after implementation.
-
-### Tech Debt Cleanup
-
-**Known items (from PROJECT.md):**
-- `ConversationPanel.tsx` — orphaned file, safe to delete if no imports found
-- Test file type errors — likely TypeScript strict-mode violations or missing type imports; fix without changing test logic
-- Room detail endpoint over-fetching — endpoint returns more data than the UI needs; refactor to project only required fields
-
-**Approach:** Each item is an isolated fix. No user-visible changes for the orphaned file or type errors. The over-fetching fix may result in a minor response size reduction — validate that existing consumers still receive the fields they use.
+**Confidence on API endpoints:** HIGH for all five providers — verified against official documentation.
 
 ---
 
 ## Sources
 
-- [Improving Factuality and Reasoning in Language Models through Multiagent Debate](https://arxiv.org/abs/2305.14325) — HIGH confidence, peer-reviewed, foundational MAD paper
-- [Multi-LLM-Agents Debate: Performance, Efficiency, and Scaling Challenges (ICLR 2025)](https://d2jud02ci9yv69.cloudfront.net/2025-04-28-mad-159/blog/mad/) — MEDIUM confidence, 2025 analysis of MAD limitations
-- [Agent Chat Rooms: Multi-Agent Debate for Better AI Outputs (MindStudio)](https://www.mindstudio.ai/blog/agent-chat-rooms-multi-agent-debate-claude-code) — MEDIUM confidence, practitioner implementation guide
-- [Emergent Convergence in Multi-Agent LLM Annotation (ACL 2025)](https://aclanthology.org/2025.blackboxnlp-1.12.pdf) — HIGH confidence, peer-reviewed, convergence detection approach
-- [Multi-Agent Consensus Seeking via Large Language Models](https://arxiv.org/pdf/2310.20151) — HIGH confidence, peer-reviewed
-- [LLM API Pricing 2026: Compare 300+ AI Model Costs](https://pricepertoken.com/) — MEDIUM confidence, community-maintained pricing data
-- [LLM API Pricing Comparison 2025 (IntuitionLabs)](https://intuitionlabs.ai/articles/llm-api-pricing-comparison-2025) — MEDIUM confidence, verified against provider pages
-- [Effective context engineering for AI agents (Anthropic)](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — HIGH confidence, official Anthropic engineering blog
-- [llm-cost npm package](https://github.com/rogeriochaves/llm-cost) — LOW confidence for adoption (last updated 2 years ago, limited provider coverage); noted as anti-pattern, not recommended
+- Anthropic List Models API: https://platform.claude.com/docs/en/api/models-list (HIGH — official docs, verified)
+- OpenAI List Models API: https://platform.openai.com/docs/api-reference/models/list (HIGH — official docs)
+- Google Generative AI models REST: https://ai.google.dev/api/rest/v1beta/models (MEDIUM — referenced in official API index)
+- OpenRouter models endpoint: https://openrouter.ai/docs/api/api-reference/models/get-models (HIGH — verified via WebFetch, returns `id`, `name`, pricing metadata)
+- Ollama list models: https://docs.ollama.com/api/tags (HIGH — official Ollama docs, endpoint `/api/tags`)
+- Existing codebase analysis: schema.ts, AgentForm.tsx, AgentPresets.ts, AgentCard.tsx, ProviderCard.tsx, settings/page.tsx, api/agents/[agentId]/route.ts
 
 ---
-*Feature research for: Agents Room v1.1 — Conversation Quality & Polish milestone*
-*Researched: 2026-03-20*
+
+*Feature research for: Agents Room v1.2 — Agent Management milestone*
+*Researched: 2026-03-21*

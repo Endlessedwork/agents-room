@@ -1,10 +1,10 @@
 # Architecture Research
 
-**Domain:** Multi-agent conversation app — v1.1 feature integration
-**Researched:** 2026-03-20
-**Confidence:** HIGH (direct codebase analysis of all relevant modules)
+**Domain:** Agent management features for multi-agent conversation app (v1.2)
+**Researched:** 2026-03-21
+**Confidence:** HIGH (derived from direct codebase inspection of all relevant modules)
 
-## Existing Architecture (v1.0 Baseline)
+## Existing Architecture Baseline (v1.1)
 
 ### System Overview
 
@@ -12,422 +12,391 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │                        Browser (React)                           │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  ChatPanel / ChatHeader / MessageList / ChatInput           │ │
-│  │       Zustand chatStore (messages, streaming, status)       │ │
-│  │       SSE events (token, turn:start, turn:end, status)      │ │
+│  │  AgentsPage / AgentForm / AgentCard (create only, no edit)  │ │
+│  │  SettingsPage  (owns provider CRUD via local useState)       │ │
+│  │  Zustand: agentStore, roomStore, chatStore                   │ │
 │  └──────────────────────────┬──────────────────────────────────┘ │
 └─────────────────────────────┼────────────────────────────────────┘
-                              │ HTTP / SSE
+                              │ HTTP
 ┌─────────────────────────────┼────────────────────────────────────┐
 │                   Next.js 16 API Layer                           │
-│  POST /conversation/start  → ConversationManager.start()        │
-│  POST /conversation/pause  → ConversationManager.pause()        │
-│  POST /conversation/stop   → ConversationManager.stop()         │
-│  POST /conversation/resume → ConversationManager.resume()       │
-│  GET  /stream              → StreamRegistry (SSE endpoint)      │
-│  POST /summary             → generateLLM (non-streaming)        │
+│  GET/POST  /api/agents                                           │
+│  GET/PUT/DELETE /api/agents/[id]   ← PUT already implemented     │
+│  GET       /api/providers          ← returns all 5 providers     │
+│  PUT       /api/providers/[p]      ← upsert key + baseUrl        │
+│  POST      /api/providers/[p]/test ← calls generateLLM to verify │
 └─────────────────────────────┼────────────────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────────────────┐
-│                    Conversation Layer                            │
-│  ┌──────────────────────────▼──────────────────────────────┐    │
-│  │                 ConversationManager                      │    │
-│  │  Turn loop: while(turnCount < turnLimit)                 │    │
-│  │    SpeakerSelector.next() → agent                        │    │
-│  │    ContextService.buildContext() → {systemPrompt, msgs}  │    │
-│  │    streamLLM() → token stream                            │    │
-│  │    emitSSE(token) → StreamRegistry                       │    │
-│  │    persist message → DB                                  │    │
-│  │    ContextService.detectRepetition() → maybe pause       │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────┐  ┌──────────────────────────────────┐   │
-│  │   ContextService    │  │       SpeakerSelector            │   │
-│  │  buildContext()     │  │  round-robin | llm-selected      │   │
-│  │  detectRepetition() │  │                                  │   │
-│  └─────────────────────┘  └──────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────┼────────────────────────────────────┐
-│                      LLM Gateway                                 │
-│  streamLLM() → Vercel AI SDK streamText()                        │
-│  generateLLM() → Vercel AI SDK generateText()                    │
-│  providers.ts → createAnthropic/OpenAI/Google/OpenRouter/Ollama  │
-└──────────────────────────────────────────────────────────────────┘
+│            lib/llm/ — LLM Gateway                                │
+│  providers.ts: createAnthropic | createOpenAI | createGoogle     │
+│               createOpenRouter | createOllama                    │
+│  gateway.ts: streamLLM(), generateLLM()                          │
+└─────────────────────────────┼────────────────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────────────────┐
 │                   SQLite (WAL) via Drizzle                       │
 │  agents | rooms | roomAgents | messages | providerKeys           │
+│  agents.presetId already exists (nullable text FK)               │
+│  agents.notes  — NOT YET in schema, needs migration              │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities (Existing)
+---
 
-| Component | Responsibility | File |
-|-----------|----------------|------|
-| ConversationManager | Turn loop orchestration, abort control, status transitions | `lib/conversation/manager.ts` |
-| ContextService | Sliding window context assembly (20 msgs), repetition detection (Jaccard) | `lib/conversation/context-service.ts` |
-| SpeakerSelector | Round-robin and LLM-selected speaker strategy | `lib/conversation/speaker-selector.ts` |
-| streamLLM / generateLLM | Provider abstraction, Vercel AI SDK wrapper | `lib/llm/gateway.ts` |
-| StreamRegistry | In-process SSE fan-out, per-room controller sets | `lib/sse/stream-registry.ts` |
-| chatStore (Zustand) | Client message list, streaming buffer, token totals, status | `stores/chatStore.ts` |
+## Integration Architecture for v1.2 Features
+
+### What Already Exists vs What is New
+
+**Critical finding:** `PUT /api/agents/[agentId]` and `updateAgentSchema` are already implemented and deployed. The edit API layer requires zero new work. The gap is entirely in the UI.
+
+| Feature | API Layer | Store | UI |
+|---------|-----------|-------|-----|
+| Agent editing | DONE (PUT route exists) | Missing updateAgent action | Missing edit page + AgentCard edit button |
+| Model picker | NEW route needed | NEW model cache | NEW combobox replacing text input |
+| Agent presets CRUD | Not needed (stay static) | No change | Minor: presets are already rendered |
+| Providers page | DONE (routes exist) | NEW providerStore | NEW /providers page, move from SettingsPage |
+| Agent notes | Schema migration needed | updateAgent handles it | New notes textarea in AgentForm |
 
 ---
 
-## Integration Architecture for v1.1 Features
+## System Changes for Each Feature
 
-### How the Four Features Land
+### 1. Agent Editing
 
-All four features integrate at the existing ConversationManager → ContextService → Gateway seam. No new API routes are needed. No schema migrations are required.
+**Entry point:** AgentCard gains an Edit button linking to `/agents/[agentId]/edit`.
 
-```
-ConversationManager.start()
-    │
-    ├── [NEW] Round 0 branch: parallel first round
-    │       Fire all agents simultaneously (Promise.all over streamLLM calls)
-    │       Collect buffered responses → persist sequentially → emit SSE sequentially
-    │       turnCount += agentCount → continue sequential loop
-    │
-    ├── Per-turn sequential loop (existing)
-    │       ContextService.buildContext()  ← [MODIFIED] quality prompt additions
-    │       streamLLM()
-    │       persist message
-    │       ContextService.detectRepetition()     (existing)
-    │       [NEW] ContextService.detectConvergence()  ← new static method
-    │
-    └── Cost: derived client-side from token data already in SSE events
-            [NEW] CostEstimator module (client-importable)
-            chatStore.completeTurn() calls CostEstimator after each turn:end
-```
+**New route:** `src/app/(dashboard)/agents/[agentId]/edit/page.tsx` — server component that fetches the agent, renders AgentForm with `initialData` prop.
 
----
+**AgentForm changes:** Accepts `initialData?: Agent | null`. When set, submit calls `PUT /api/agents/[id]` instead of `POST /api/agents`. After save, calls `agentStore.updateAgent(updated)` and navigates back to `/agents`.
 
-## Feature-by-Feature Integration Points
-
-### 1. Quality Conversations
-
-**What changes:** `ContextService.buildContext()` — system prompt assembly.
-
-The current system prompt is a naive join of four agent prompt fields. Quality improvements inject structural framing that anchors agents to the discussion topic and asks for substantive contributions.
-
-The `roomTopic` is already available — `buildContext()` already queries the room when messages start with `assistant` role. The method signature gets a small extension to always pass `roomTopic` and use it in prompt framing.
-
-Additionally, asking agents to explicitly signal agreement ("I agree with X's point that...") in their prompt rules makes convergence detection downstream more reliable without requiring an LLM call for detection.
-
-**Component boundary:** Entirely within `ContextService.buildContext()`. The manager does not change.
-
-**New vs Modified:** MODIFIED — `ContextService.buildContext()` signature and prompt assembly logic.
-
----
-
-### 2. Cost Estimation
-
-**What changes:** New `CostEstimator` module, extended `chatStore`, new cost display UI.
-
-**Why client-side:** The client already receives `inputTokens`, `outputTokens`, and `model` via SSE `turn:end` and `turn:start` events respectively. The agent's `provider` is in `StreamingState` (set on `turn:start`). Computing cost client-side requires no extra API call, no DB change, and no turn-loop modification.
-
-**New module: `lib/conversation/cost-estimator.ts`**
-
-This module is importable by both server and client (pure computation, no DB or API dependencies).
-
-```
-CostEstimator
-  ├── PRICING_TABLE: Record<provider, Record<model, {inputPerMTok, outputPerMTok}>>
-  ├── computeCost(provider, model, inputTokens, outputTokens): number | null
-  └── estimateRoomCost(messages[]): number | null   (for history load)
-```
-
-Returns `null` when the model is not in the pricing table (unknown/custom models via OpenRouter or Ollama). UI renders "—" for null costs.
-
-**chatStore changes:** `completeTurn()` calls `CostEstimator.computeCost()` and stores cost per message. A derived `totalCost` accumulator is updated. `loadHistory()` calls `estimateRoomCost()` to populate cost on initial load.
+**agentStore changes:** Add `updateAgent(agent: Agent)` action. Patches the agents array by id. Mirrors the existing `deleteAgent` pattern exactly.
 
 **Data flow:**
 ```
-SSE: turn:end { agentId, messageId, inputTokens, outputTokens }
-    chatStore.completeTurn(data)
-        → CostEstimator.computeCost(streaming.provider, streaming.model, ...)
-        → message.estimatedCost = result
-        → tokenTotals.estimatedCost += result
-    UI: cost badge per message, cumulative in header
+User clicks "Edit" on AgentCard
+  → navigate to /agents/[agentId]/edit
+  → page server-fetches agent via db.query.agents.findFirst
+  → AgentForm rendered with initialData
+  → User edits fields
+  → Submit: PUT /api/agents/[id] (validated by updateAgentSchema.partial())
+  → Response: updated Agent row
+  → agentStore.updateAgent(updated)
+  → router.push('/agents')
 ```
 
-**Schema change:** None. Cost is derived from existing columns.
+**Copy-on-assign isolation:** Editing a library agent does NOT change existing roomAgents rows. No special handling needed — this is by design. The UI should state: "Changes apply to new room assignments only."
 
 **New vs Modified:**
-- NEW: `lib/conversation/cost-estimator.ts`
-- MODIFIED: `stores/chatStore.ts` — per-message cost field, total cost accumulator, `loadHistory` uses `estimateRoomCost`
-- NEW: cost display in UI (rendering only, no logic)
+- NEW: `src/app/(dashboard)/agents/[agentId]/edit/page.tsx`
+- MODIFIED: `src/components/agents/AgentForm.tsx` — add initialData prop, dual POST/PUT submit path
+- MODIFIED: `src/components/agents/AgentCard.tsx` — add Edit button
+- MODIFIED: `src/stores/agentStore.ts` — add updateAgent action
 
 ---
 
-### 3. Parallel First Round
+### 2. Model Picker
 
-**What changes:** `ConversationManager.start()` — turn loop entry.
+**Problem:** AgentForm has a free-text Input for model. Users must know model names exactly. Model picker fetches available models from the selected provider and shows a combobox.
 
-**What it means:** When no agent has spoken yet (round 0), all agents respond to the raw topic without seeing each other's output. Subsequent rounds proceed sequentially (existing behavior untouched).
+**New API route:** `GET /api/providers/[provider]/models`
 
-**The SSE ordering constraint:** `chatStore.streaming` holds a single `StreamingState` slot. Truly parallel token streaming would interleave `turn:start` / `token` / `turn:end` events and break the client state machine. The solution: run all LLM calls in parallel but buffer each agent's full response text, then emit SSE sequentially per agent.
+**New module:** `src/lib/llm/model-fetcher.ts` — normalizes per-provider model listing to `string[]`.
 
-```
-parallelFirstRound(roomId, agents, db):
-    1. buildContext for each agent simultaneously (Promise.all)
-    2. streamLLM for each agent simultaneously (Promise.all, consume full text into buffers)
-    3. For each agent (sequential emission):
-        emitSSE(turn:start, agentN)
-        emitSSE(token × chunks, agentN)   ← replaying buffered text as chunks
-        persist message to DB
-        emitSSE(turn:end, agentN)
-    4. return turnCount (= number of agents)
-```
+**Provider API behavior per provider:**
 
-The latency benefit is real: parallel round 1 waits for the slowest agent, not the sum of all agents. With 3 agents each taking 5 seconds, parallel = 5s total vs sequential = 15s.
+| Provider | Model enumeration | Implementation |
+|----------|-------------------|----------------|
+| Anthropic | No public /models endpoint | Static curated list (hardcoded in model-fetcher.ts) |
+| OpenAI | `GET /v1/models` — filter to chat completions | Live API call |
+| Google | No simple enumerate endpoint | Static curated list |
+| OpenRouter | `GET /api/v1/models` | Live API call |
+| Ollama | `GET {baseUrl}/api/tags` — local installed models | Live API call, no key needed |
 
-**Guard condition:** Check `messageCount === 0` before entering `parallelFirstRound`. This means the feature only activates at conversation start, not on resume.
+**New Zustand store:** `src/stores/providerStore.ts`
 
-**Abort signal:** Each parallel LLM call gets its own `AbortController`. If the room is stopped while parallel calls are in flight, all controllers are aborted. The `activeControllers` map can hold multiple entries during the parallel phase (keyed by `${roomId}-${agentId}`), then restored to the single per-room entry before the sequential loop.
-
-**New vs Modified:**
-- MODIFIED: `ConversationManager.start()` — parallel first round branch
-- NEW (optional): `lib/conversation/parallel-round.ts` — extract logic for unit testability
-
----
-
-### 4. Convergence Detection
-
-**What changes:** `ContextService` (new method), `ConversationManager.start()` (call alongside repetition check).
-
-**What convergence means:** Agents have reached semantic agreement. Distinct from repetition detection (Jaccard token overlap). Convergence is signaled by explicit linguistic markers in recent messages.
-
-**Approach: heuristic phrase detection (no LLM call).**
-
-`ContextService.detectConvergence(db, roomId)` method:
-- Queries last N agent messages (default: 6, configurable as class constant)
-- Counts messages containing agreement signal phrases: "I agree", "exactly right", "you're correct", "consensus", "we've established", "we all agree", "I concur", "well said"
-- Counts messages containing disagreement signals: "I disagree", "however", "on the contrary", "but actually", "I would argue", "not necessarily"
-- Returns `true` when: agreement signals present in majority of recent messages AND disagreement signals absent or minimal
-- Returns `false` when fewer than N agent messages exist (cannot detect convergence too early)
-
-Quality prompt changes (feature 1) ask agents to use explicit agreement language, which significantly improves signal reliability.
-
-**Integration in turn loop:**
 ```typescript
-// After turn:end persist, alongside existing repetition check
-const isRepetitive = await ContextService.detectRepetition(db, roomId);
-const hasConverged = await ContextService.detectConvergence(db, roomId);
-
-if (isRepetitive) {
-  // existing: pause with system message
-}
-if (hasConverged) {
-  await db.update(rooms).set({ status: 'idle' }).where(eq(rooms.id, roomId));
-  emitSSE(roomId, 'status', { status: 'idle' });
-  await db.insert(messages).values({ /* system message */ content: '[Conversation complete: agents reached consensus]' });
-  emitSSE(roomId, 'system', { content: '[Conversation complete: agents reached consensus]' });
-  break;
+interface ProviderStore {
+  providers: ProviderData[];           // from GET /api/providers
+  models: Partial<Record<ProviderName, string[]>>;  // session cache
+  loading: Record<ProviderName, boolean>;
+  fetchProviders: () => Promise<void>;
+  fetchModels: (provider: ProviderName) => Promise<void>;
+  updateStatus: (provider: string, status: ProviderStatus) => void;
 }
 ```
 
-Uses existing `status` and `system` SSE event types. No new event types needed.
+The models cache is session-scoped (in-memory Zustand). Re-fetches on page reload are acceptable — models don't change during a session.
+
+**AgentForm integration:**
+- On provider change, call `providerStore.fetchModels(provider)` if not cached
+- Replace free-text Input with a Select/Combobox populated from `providerStore.models[provider]`
+- Fallback: if models unavailable (no key configured, fetch failed), show free-text Input with a warning message
+- Loading state: show "Loading models..." in picker while fetch is in flight
+
+**Data flow:**
+```
+User selects "openai" in provider dropdown
+  → AgentForm calls providerStore.fetchModels('openai')
+  → If cached: picker populates immediately
+  → If not cached:
+      → GET /api/providers/openai/models
+      → model-fetcher.ts reads apiKey from providerKeys DB table
+      → Calls OpenAI /v1/models, filters to gpt-* chat models
+      → Returns string[]
+      → providerStore.models['openai'] = result
+      → picker populates
+  → If fetch fails (no key): show text input + "Configure OpenAI key to browse models"
+```
 
 **New vs Modified:**
-- MODIFIED: `ContextService` — new `detectConvergence()` static method
-- MODIFIED: `ConversationManager.start()` — call `detectConvergence()` after each turn
+- NEW: `src/app/api/providers/[provider]/models/route.ts`
+- NEW: `src/lib/llm/model-fetcher.ts`
+- NEW: `src/stores/providerStore.ts`
+- MODIFIED: `src/components/agents/AgentForm.tsx` — replace model Input with combobox/select backed by providerStore
 
 ---
 
-## Component Boundary Map
+### 3. Agent Presets CRUD
+
+**Finding:** The existing implementation already satisfies the spirit of this requirement. AGENT_PRESETS is a static array of 3 templates. The `presetId` column in `agents` tracks which preset an agent was created from. AgentCard shows the preset name badge.
+
+**CRUD in practice means:**
+- CREATE preset-origin agent: already works via "Use Template" → `/agents/new?preset=X`
+- READ presets: already shown as template cards on `/agents`
+- UPDATE a preset-origin agent: satisfied by agent editing (feature 1)
+- DELETE a preset-origin agent: already works via AgentCard delete button
+
+**No new DB table, no new API routes, no new store actions are required** under this interpretation. If the requirement means "user-created preset templates with full CRUD," that is out of scope for this milestone — it requires a new `presets` table, migration, API routes, and store, adding significant complexity.
+
+**Recommendation:** Interpret as managing agents-from-presets (the narrower reading). The only possible addition is a note on AgentCard identifying preset origin, which already exists via `presetId` badge.
+
+---
+
+### 4. Dedicated Providers Page
+
+**Current state:** `SettingsPage` at `/settings` owns provider CRUD via local `useState`. 71 lines. No Zustand. Component is `ProviderCard` (unchanged).
+
+**Target state:** New `/providers` page backed by `providerStore`. SettingsPage either redirects to `/providers` or becomes a stub with a link. Sidebar gains a "Providers" nav link.
+
+**Migration:** ProviderCard.tsx requires zero changes — it takes `provider`, `status`, `hasKey`, `baseUrl`, and callbacks as props. The page just switches from local useState to `providerStore`.
+
+**Why a separate Zustand store:** AgentForm's model picker needs provider status (is this provider configured?) and the model cache. Putting provider state in Zustand allows AgentForm to read it without prop threading through any shared layout.
+
+**Sidebar change:** Add `<Link href="/providers">` with an appropriate icon (e.g., `Key` from lucide-react). The current `Settings` link either stays pointing to `/settings` as a stub or is renamed to "Providers."
+
+**Data flow:**
+```
+ProvidersPage mounts
+  → providerStore.fetchProviders() (GET /api/providers)
+  → Renders ProviderCard per provider (same as SettingsPage today)
+  → User saves key: PUT /api/providers/[p]
+  → ProviderCard calls onStatusChange callback
+  → providerStore.updateStatus(provider, 'configured')
+```
+
+**New vs Modified:**
+- NEW: `src/app/(dashboard)/providers/page.tsx`
+- NEW: `src/stores/providerStore.ts` (also serves model picker above)
+- MODIFIED: `src/components/layout/Sidebar.tsx` — add Providers link
+- MODIFIED: `src/app/(dashboard)/settings/page.tsx` — redirect or link to /providers
+
+---
+
+### 5. Agent Notes
+
+**What:** A free-text "notes" field on Agent for describing purpose, strengths, intended use cases. Visible in AgentCard, editable in AgentForm.
+
+**Schema change:** Add `notes: text('notes')` (nullable) to `agents` table in `schema.ts`. No change to `roomAgents` — notes are a library-only concept.
+
+**Migration:** `npx drizzle-kit push` (project uses push not migrate — no migrations/ directory exists).
+
+**Validation:** Add `notes: z.string().max(2000).nullable().optional()` to both `createAgentSchema` and `updateAgentSchema` in `validations.ts`.
+
+**agentStore:** Add `notes: string | null` to `Agent` type.
+
+**AgentForm:** One new Textarea for notes, below constraints field.
+
+**AgentCard:** Render notes text below the promptRole preview if present (line-clamp-2 with muted style).
+
+**New vs Modified:**
+- MODIFIED: `src/db/schema.ts` — add notes column
+- MODIFIED: `src/lib/validations.ts` — add notes to both schemas
+- MODIFIED: `src/stores/agentStore.ts` — add notes to Agent type
+- MODIFIED: `src/components/agents/AgentForm.tsx` — add notes textarea
+- MODIFIED: `src/components/agents/AgentCard.tsx` — render notes preview
+
+---
+
+## Recommended Project Structure — v1.2 Additions
 
 ```
-lib/conversation/
-├── manager.ts          [MODIFIED] parallel first round branch + convergence check
-├── context-service.ts  [MODIFIED] quality prompts in buildContext(), new detectConvergence()
-├── speaker-selector.ts [UNCHANGED]
-├── cost-estimator.ts   [NEW] pricing table + computeCost() + estimateRoomCost()
-└── parallel-round.ts   [OPTIONAL NEW] extracted parallel logic for testability
-
-stores/
-└── chatStore.ts        [MODIFIED] per-message cost, total cost accumulator
-
-src/app/ (UI)
-└── [new component]     [NEW] cost display (badge per message + room total header)
-
-db/schema.ts            [UNCHANGED] no migration needed
-lib/llm/                [UNCHANGED]
-lib/sse/                [UNCHANGED]
-app/api/rooms/.../      [UNCHANGED] all behavior changes below the API layer
+src/
+├── app/(dashboard)/
+│   ├── agents/
+│   │   ├── page.tsx                    # Unchanged
+│   │   ├── new/page.tsx                # Unchanged
+│   │   └── [agentId]/
+│   │       └── edit/page.tsx           # NEW — loads agent, renders AgentForm(initialData)
+│   ├── providers/
+│   │   └── page.tsx                    # NEW — ProviderCard grid backed by providerStore
+│   └── settings/
+│       └── page.tsx                    # MODIFIED — redirect or stub pointing to /providers
+├── app/api/
+│   └── providers/
+│       └── [provider]/
+│           └── models/
+│               └── route.ts            # NEW — GET model list from provider
+├── components/
+│   ├── agents/
+│   │   ├── AgentForm.tsx               # MODIFIED — initialData prop, notes textarea, model combobox
+│   │   ├── AgentCard.tsx               # MODIFIED — Edit button, notes preview
+│   │   └── AgentPresets.ts             # UNCHANGED
+│   └── layout/
+│       └── Sidebar.tsx                 # MODIFIED — add Providers link
+├── lib/
+│   └── llm/
+│       └── model-fetcher.ts            # NEW — per-provider model list, normalizes to string[]
+└── stores/
+    ├── agentStore.ts                   # MODIFIED — updateAgent action, notes in Agent type
+    └── providerStore.ts                # NEW — providers list + model cache
 ```
 
 ---
 
-## Data Flow Changes
+## Component Boundary Map — Complete Reference
 
-### Cost Estimation Flow (Client-Side)
+| Component | Status | Change Summary |
+|-----------|--------|----------------|
+| `src/app/(dashboard)/agents/[agentId]/edit/page.tsx` | NEW | Fetch agent, render AgentForm in edit mode |
+| `src/app/(dashboard)/providers/page.tsx` | NEW | Dedicated provider management page |
+| `src/app/api/providers/[provider]/models/route.ts` | NEW | Model list endpoint |
+| `src/lib/llm/model-fetcher.ts` | NEW | Provider-specific model enumeration |
+| `src/stores/providerStore.ts` | NEW | Provider state + model cache for Zustand |
+| `src/components/agents/AgentForm.tsx` | MODIFIED | initialData, notes field, model combobox |
+| `src/components/agents/AgentCard.tsx` | MODIFIED | Edit button, notes preview |
+| `src/stores/agentStore.ts` | MODIFIED | updateAgent action, notes in Agent type |
+| `src/db/schema.ts` | MODIFIED | notes column on agents table |
+| `src/lib/validations.ts` | MODIFIED | notes field in createAgent/updateAgent schemas |
+| `src/components/layout/Sidebar.tsx` | MODIFIED | Providers nav link |
+| `src/app/(dashboard)/settings/page.tsx` | MODIFIED | Redirect or stub |
+| `src/components/settings/ProviderCard.tsx` | UNCHANGED | Reused on /providers page |
+| `src/components/agents/AgentPresets.ts` | UNCHANGED | Static templates remain static |
+| All conversation layer files | UNCHANGED | v1.2 is UI/data only — no turn loop changes |
+| All SSE files | UNCHANGED | — |
+| All room API routes | UNCHANGED | — |
 
-```
-Server: turn:start { agentId, agentName, model, provider, ... }
-    → chatStore.startTurn() stores model + provider in StreamingState
+---
 
-Server: turn:end { agentId, messageId, inputTokens, outputTokens }
-    → chatStore.completeTurn(data)
-    → CostEstimator.computeCost(streaming.provider, streaming.model, inputTokens, outputTokens)
-    → message.estimatedCost = cost (or null)
-    → tokenTotals.estimatedCost += cost
+## Data Flow Changes Summary
 
-Initial load: chatStore.loadHistory()
-    → CostEstimator.estimateRoomCost(messages)
-    → tokenTotals.estimatedCost = aggregate
-
-UI renders "$0.002" per message, "~$0.018 total" in header
-```
-
-### Convergence Detection Flow
-
-```
-Server: after each turn:end persist
-    → ContextService.detectConvergence(db, roomId)
-    → true?
-        → rooms.status = 'idle'
-        → persist system message
-        → emitSSE('status', { status: 'idle' })
-        → emitSSE('system', { content: '[consensus]' })
-
-Client: chatStore.setRoomStatus('idle')
-    chatStore.addSystemMessage('[consensus message]')
-    (same path as any other stop event — no new client handling needed)
-```
-
-### Parallel First Round Flow
+### Agent Edit Data Flow
 
 ```
-Server: ConversationManager.start()
-    → SELECT count(*) FROM messages WHERE roomId = ? → result = 0
-    → parallelFirstRound():
-        → Promise.all([buildContext(a1), buildContext(a2), buildContext(a3)])
-        → Promise.all([streamLLM(a1, ctx1), streamLLM(a2, ctx2), streamLLM(a3, ctx3)])
-           (each collects full text into a buffer, all in flight simultaneously)
-        → Sequential SSE emission:
-            emitSSE(turn:start, a1) → emitSSE(token × N, a1) → persist a1 → emitSSE(turn:end, a1)
-            emitSSE(turn:start, a2) → emitSSE(token × N, a2) → persist a2 → emitSSE(turn:end, a2)
-            emitSSE(turn:start, a3) → emitSSE(token × N, a3) → persist a3 → emitSSE(turn:end, a3)
-        → return agentCount (3)
-    → turnCount = 3, continue sequential loop for remaining turns
+AgentCard "Edit" → /agents/[id]/edit
+  → page: db.query.agents.findFirst(id) → initialData
+  → AgentForm(initialData)
+  → submit: PUT /api/agents/[id]
+  → agentStore.updateAgent(result)
+  → router.push('/agents')
+```
+
+### Model Picker Data Flow
+
+```
+AgentForm: provider changes to "openai"
+  → providerStore.fetchModels('openai')
+  → if cached → populate Select immediately
+  → else → GET /api/providers/openai/models
+       → model-fetcher.ts → OpenAI /v1/models → filter → string[]
+       → cache in providerStore
+       → populate Select
+  → if error → show free-text input fallback
+```
+
+### Provider State Sharing
+
+```
+providerStore (Zustand)
+  → ProvidersPage subscribes (status display, save, test)
+  → AgentForm subscribes (model cache only)
+  → Single fetchProviders() call shared across both consumers
 ```
 
 ---
 
-## Architectural Patterns
+## Build Order Recommendation
 
-### Pattern: Augment, Don't Replace
+Dependencies drive the sequence. Each step is independently shippable.
 
-**What:** Add new behavior alongside existing behavior, guarded by a condition or as a new parallel method.
-**When to use:** When the new feature is a superset of existing behavior (parallel first round adds a branch before the loop; convergence detection adds a check alongside repetition detection).
-**Trade-off:** Keeps existing code paths as the golden path. New branches are narrow and independently testable. Risk: method complexity grows. Acceptable given the tight scope.
+**Step 1: Schema + validation + agentStore.updateAgent**
+Zero UI impact. Foundation for editing and notes. Run `npx drizzle-kit push` after schema change. Validate updateAgent works against existing PUT route before any UI work.
 
-### Pattern: Client-Side Derivation from In-Transit Data
+**Step 2: Agent notes field**
+Additive. One column, one textarea. Add to AgentForm (create mode), AgentCard preview. Trivial surface area.
 
-**What:** Derive computed values on the client from data already present in SSE events, using a shared pure-computation module.
-**When to use:** When the data for computation is already being sent (token counts, model, provider) and derivation requires no secrets or DB access.
-**Trade-off:** Pricing table lives client-side (static, not sensitive). Avoids extra API round-trip and turn-loop complexity. Pricing updates require a deploy, but that is acceptable for a personal tool.
+**Step 3: Agent editing (UI)**
+Depends on Step 1 (updateAgent in store). Create edit page, modify AgentForm for dual mode, add Edit button to AgentCard. The hardest part is AgentForm dual-mode logic — verify the edit round-trip end-to-end before moving on.
 
-### Pattern: Buffer-Then-Emit for Parallelism
+**Step 4: Providers page + providerStore**
+Independent of editing features. Extract SettingsPage state into providerStore, create /providers page, update Sidebar. ProviderCard is reused unchanged. Update Settings page.
 
-**What:** Run LLM calls concurrently for latency savings but buffer full responses and emit SSE sequentially to preserve the client state machine.
-**When to use:** When the client state machine assumes a single active streaming slot (chatStore.streaming is one object, not an array).
-**Trade-off:** Round 1 responses appear as a burst after all complete, not progressively per agent. The real-time streaming feel is deferred to rounds 2+. The latency benefit (slowest agent time vs. sum of all) is preserved.
+**Step 5: model-fetcher.ts + models API route**
+Depends on Step 4 (providerStore exists and has fetchProviders). Build model-fetcher.ts, wire the API route, test per provider. Anthropic and Google use static lists — code them first, then add live OpenAI/OpenRouter/Ollama calls.
+
+**Step 6: Model picker UI**
+Depends on Steps 4+5 (providerStore with models cache). Replace free-text model Input in AgentForm with combobox. Wire loading state and fallback.
+
+**Step 7: Presets CRUD (if required beyond what exists)**
+If confirmed to mean "user-managed preset templates," scope to a separate planning session — it adds a new DB table and is not blocked by any other v1.2 feature. If confirmed as "manage preset-origin agents," it is already complete after Step 3.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern: New SSE Event Type for Convergence
+### Anti-Pattern 1: Re-implementing the PUT route
 
-**What people do:** Create a `convergence` SSE event, add a new chatStore handler.
-**Why it's wrong:** The existing `status: idle` plus `system` message pair already expresses "conversation stopped with explanation." Fragmenting the status state machine adds client complexity.
-**Do this instead:** Reuse existing `status` and `system` event types. The consensus message in the system event explains why the room stopped.
+**What:** Writing a new handler or new route when PUT /api/agents/[agentId] already exists and validates via updateAgentSchema.
+**Why wrong:** Duplicate code, divergent validation, wasted effort.
+**Do this instead:** The edit form submits to the existing PUT route. No API changes needed for agent editing.
 
-### Anti-Pattern: Server-Side Cost Computation in the Turn Loop
+### Anti-Pattern 2: Model fetch on every AgentForm mount
 
-**What people do:** Add pricing logic inside ConversationManager, persist cost to DB, include it in `turn:end` SSE payload.
-**Why it's wrong:** Embeds pricing data in the core turn loop. Pricing changes require touching conversation logic. The client already has tokens and model — it can compute cost without a round-trip.
-**Do this instead:** Client-side derivation via `CostEstimator` module in `chatStore.completeTurn()`.
+**What:** Fetching models for the current provider every time AgentForm renders.
+**Why wrong:** Adds latency on form open, makes redundant network calls if the provider hasn't changed.
+**Do this instead:** Check providerStore.models[provider] cache first. Fetch only on cache miss (new provider selected or first load for that provider).
 
-### Anti-Pattern: Truly Parallel SSE Token Streaming
+### Anti-Pattern 3: Keeping provider state in SettingsPage local state
 
-**What people do:** Extend chatStore to hold N concurrent StreamingState slots and pipe each agent's token stream directly to SSE as it arrives.
-**Why it's wrong:** Requires chatStore rework, UI changes to render N simultaneous in-progress bubbles, and SSE multiplexing by agent ID. The scope is disproportionate to the benefit — the user sees agents thinking simultaneously but the UI complexity is significant.
-**Do this instead:** Parallel LLM calls with buffered text, sequential SSE emission. The latency improvement is preserved.
+**What:** Building the ProvidersPage with its own useState/useEffect, like SettingsPage does now.
+**Why wrong:** AgentForm's model picker cannot access local state in ProvidersPage. Two separate fetches of the same data.
+**Do this instead:** providerStore in Zustand. One shared fetch, one shared cache, two consumers.
 
-### Anti-Pattern: LLM Call for Convergence Detection
+### Anti-Pattern 4: Adding notes to roomAgents table
 
-**What people do:** After each turn, call `generateLLM()` asking "have the agents reached consensus?"
-**Why it's wrong:** Doubles cost per turn for every conversation, adds latency to every turn, and is unnecessary when quality prompts produce explicit agreement signals.
-**Do this instead:** Phrase-based heuristic in `ContextService.detectConvergence()`. Upgrade to LLM-powered detection in v1.2 if the heuristic proves insufficient.
+**What:** Copying the notes column to roomAgents when implementing copy-on-assign.
+**Why wrong:** Notes are a user annotation on the library agent, not a behavioral property. Room agents don't benefit from notes — the conversation engine ignores them.
+**Do this instead:** notes column on agents only. Copy-on-assign continues to copy only the fields that affect agent behavior (prompts, model, temperature, avatar).
 
----
+### Anti-Pattern 5: DB-backed presets as a v1.2 scope item
 
-## Suggested Build Order
-
-Dependencies drive the sequence.
-
-### Step 1: Quality Conversations
-
-Build first. Zero dependencies on other features. Isolated to `ContextService.buildContext()`. This also makes convergence detection (step 3) more reliable — quality prompts produce explicit agreement signals that phrase matching can detect.
-
-Validates: system prompt output via unit tests. No integration risk.
-
-### Step 2: Cost Estimator
-
-Build second. Fully independent. New module (`cost-estimator.ts`) plus additive chatStore changes. Can be done in parallel with step 1.
-
-Validates: `computeCost()` unit tests against known models. UI rendering of cost fields.
-
-### Step 3: Convergence Detection
-
-Build third. Depends on step 1 for reliable signal phrases. `detectConvergence()` mirrors the existing `detectRepetition()` pattern — same DB query shape, new detection logic. The manager hook is a small addition alongside the existing repetition check.
-
-Validates: unit tests with crafted message fixtures containing agreement/disagreement phrases. Integration test: conversation stops at idle with system message when convergence threshold met.
-
-### Step 4: Parallel First Round
-
-Build last. Most complex change — modifies the turn loop entry point which is the highest-risk area. Better to have quality prompts and convergence detection stable first. The `messageCount === 0` guard isolates the change to round 1 only; existing sequential behavior for all subsequent rounds is untouched.
-
-Validates: integration test — fire 3 agents in a new room, verify all 3 messages persisted before sequential turns begin. Latency test: parallel round should complete in ~max(individual agent times).
-
-### Step 5: Tech Debt Cleanup
-
-Interleaved throughout. Orphaned `ConversationPanel.tsx` removal is independent of all features. Type error fixes should accompany whichever feature touches the affected file. Do not defer to end — debt becomes harder to clean after new features add surface area.
-
----
-
-## New vs Modified: Complete Reference
-
-| Component | Status | Change Summary |
-|-----------|--------|----------------|
-| `lib/conversation/manager.ts` | MODIFIED | Parallel first round branch (`messageCount === 0`), convergence check after each turn |
-| `lib/conversation/context-service.ts` | MODIFIED | Quality framing in `buildContext()`, new `detectConvergence()` static method |
-| `lib/conversation/cost-estimator.ts` | NEW | Static pricing table, `computeCost()`, `estimateRoomCost()` |
-| `lib/conversation/parallel-round.ts` | OPTIONAL NEW | Extracted parallel logic for unit testability |
-| `stores/chatStore.ts` | MODIFIED | Per-message `estimatedCost` field, total cost accumulator, `loadHistory` uses `estimateRoomCost` |
-| Cost display UI component | NEW | Renders cost per message and room total |
-| `lib/conversation/speaker-selector.ts` | UNCHANGED | — |
-| `lib/llm/gateway.ts` | UNCHANGED | — |
-| `lib/sse/stream-registry.ts` | UNCHANGED | — |
-| `db/schema.ts` | UNCHANGED | No migration needed |
-| API routes | UNCHANGED | All behavior changes are below the route layer |
+**What:** Building a presets table, presets API routes, and presets management UI in v1.2.
+**Why wrong:** Adds 2-3 additional phases of work for marginal user value — the 3 static presets cover 90% of use cases.
+**Do this instead:** Confirm with the project owner that "presets CRUD" means edit/delete of preset-origin agents (already handled by agent editing). Defer DB-backed preset templates to v1.3 or later if needed.
 
 ---
 
 ## Sources
 
-- Direct codebase analysis: `src/lib/conversation/manager.ts` (turn loop, abort control)
-- Direct codebase analysis: `src/lib/conversation/context-service.ts` (buildContext, detectRepetition)
-- Direct codebase analysis: `src/lib/conversation/speaker-selector.ts` (strategy patterns)
-- Direct codebase analysis: `src/lib/llm/gateway.ts` (streamLLM, generateLLM signatures)
-- Direct codebase analysis: `src/lib/sse/stream-registry.ts` (emitSSE, event types)
-- Direct codebase analysis: `src/stores/chatStore.ts` (StreamingState, completeTurn, token totals)
-- Direct codebase analysis: `src/db/schema.ts` (messages.inputTokens, messages.model columns)
-- Project context: `.planning/PROJECT.md` (v1.1 milestone requirements)
+- Direct codebase inspection: `src/db/schema.ts`, `src/lib/validations.ts`, `src/stores/agentStore.ts`
+- Direct codebase inspection: `src/app/api/agents/[agentId]/route.ts` (PUT already exists)
+- Direct codebase inspection: `src/app/api/providers/route.ts`, `src/app/api/providers/[provider]/route.ts`
+- Direct codebase inspection: `src/components/agents/AgentForm.tsx`, `AgentCard.tsx`, `AgentPresets.ts`
+- Direct codebase inspection: `src/app/(dashboard)/settings/page.tsx`, `src/components/layout/Sidebar.tsx`
+- Provider API knowledge: Anthropic (no public /models enumerate), OpenAI (/v1/models exists), Google (no simple enumerate), OpenRouter (/api/v1/models), Ollama (/api/tags) — training data, MEDIUM confidence
+- Project context: `.planning/PROJECT.md` (v1.2 feature list)
 
 ---
 
-*Architecture research for: Agents Room v1.1 — Conversation Quality & Polish*
-*Researched: 2026-03-20*
+*Architecture research for: Agents Room v1.2 — Agent Management*
+*Researched: 2026-03-21*

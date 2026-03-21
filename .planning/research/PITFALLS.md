@@ -1,225 +1,230 @@
 # Pitfalls Research
 
-**Domain:** Adding conversation quality improvements, cost estimation, parallel first round, and convergence detection to an existing multi-agent chat system
-**Researched:** 2026-03-20
-**Confidence:** HIGH (existing codebase inspected, academic research confirmed, multi-source verification)
+**Domain:** Adding agent editing, model picker, presets CRUD, dedicated providers page, and agent notes to an existing multi-agent conversation app (v1.2 Agent Management milestone)
+**Researched:** 2026-03-21
+**Confidence:** HIGH (existing codebase fully inspected, patterns verified against schema and live code)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Hardcoded Pricing Goes Stale Within Weeks
+### Pitfall 1: Editing a Global Agent and Expecting Room Agents to Update
 
 **What goes wrong:**
-You embed a lookup table mapping model IDs to $/million-token rates. Three weeks later, Anthropic drops Claude Sonnet 4 pricing 40%, OpenRouter adds new models with different rate structures, and Gemini introduces separate rates for long-context vs. short-context calls. Your cost estimates are silently wrong. Users see "$0.03 per conversation" when the real cost is $0.01 or $0.08. Worse: when models you don't have in the table are used (e.g., a user configures a custom OpenRouter model), the cost display shows $0.00 or crashes.
+The app uses a copy-on-assign pattern: when an agent is assigned to a room, all fields are copied into the `room_agents` table. The `PUT /api/agents/:agentId` endpoint already exists and updates the `agents` table. When agent editing UI is added, a developer or user assumes that editing the global agent card also updates how that agent behaves in rooms it was previously added to. It does not — and it must not. But the UI can mislead: if the agent list on the Agents page shows the updated global fields, while the room still runs with the old snapshot, the user gets confused about why their "updated" agent is still using the old role.
 
 **Why it happens:**
-LLM pricing dropped roughly 80% between early 2025 and early 2026. Providers change pricing every 1-3 months. Any static data structure representing prices decays immediately. Developers build the table once at implementation time and it becomes archaeology.
+The copy-on-assign pattern is correct and intentional, but it's non-obvious to users who expect "edit agent" to mean "update the agent everywhere." The UI gives no indication that room agents are independent snapshots.
 
 **How to avoid:**
-- Design the pricing layer with explicit coverage gaps: show "~$X.XX est." only when you have data; show "— (pricing unavailable)" when you don't. Never show $0.00 for a model where the true cost is unknown.
-- Store pricing data in a config file (e.g., `pricing.json`) that is trivially editable, not compiled into source code. One-line updates without touching logic code.
-- Scope the initial implementation to cover only the specific models configured in the seed data. Don't attempt to cover every possible model.
-- Document the pricing date in the config file itself: `"last_updated": "2026-03-20"`.
-- Accept that estimates will be imprecise — "~$0.04 (estimated)" is much more useful than false precision at stale rates.
+- On the agent edit form, add a clear disclosure: "Changes apply to new room assignments only. Existing room agents are not affected."
+- Never cascade `UPDATE` from `agents` to `room_agents` in the database or API. The FK `sourceAgentId` is intentionally nullable and `onDelete: 'set null'` — it is a trace reference, not a live link.
+- If the user needs the updated version in a room, the correct workflow is: remove the agent from the room and re-add it. Make this explicit in the UI.
+- The `agentStore` does not have an `updateAgent` method yet. When adding it, update only the local Zustand state — do not try to propagate changes to `roomAgents` through the store.
 
 **Warning signs:**
-- A model ID appears in the room that has no corresponding entry in the pricing table and the UI shows $0.00.
-- Cost totals don't change when switching between an expensive and cheap model.
-- The pricing table was written more than 4 weeks ago without a review.
+- A database trigger or API code that does `UPDATE room_agents SET ... WHERE source_agent_id = ?` after an agent edit.
+- The agent edit form has no note about room agent independence.
+- A test that checks the room agent's fields after editing the global agent and expects them to match.
 
-**Phase to address:** Cost estimation phase. Design the unknown-model fallback before building the happy path.
+**Phase to address:** Agent editing phase. The disclosure text and the store-only update path must be in the acceptance criteria.
 
 ---
 
-### Pitfall 2: Parallel First Round Creates a SQLite Write Contention Problem
+### Pitfall 2: Model Picker Fetching Available Models at Form Open Time — Without Handling Failure
 
 **What goes wrong:**
-The parallel first round fires multiple `streamLLM` calls concurrently via `Promise.all`. Each resolves with a full response, then tries to `db.insert(messages)` simultaneously. `better-sqlite3` is synchronous and single-writer — concurrent async inserts from different Node.js event loop ticks serialized through the same connection will not cause corruption, but a higher-level race exists: two agents finishing at nearly the same time both call `db.query.rooms.findFirst` to check status, see 'running', and proceed to write. If `stop()` is called mid-parallel-round, the abort signal only cancels in-flight LLM streams; the already-completed responses still write to DB after the stop.
+A model picker dropdown that calls `GET /api/providers/:provider/models` (or a similar endpoint) when the form opens will fail silently if the provider's API is unreachable, the API key is invalid, or the provider rate-limits the list endpoint. The user sees an empty dropdown or a spinner that never resolves. Even worse: different providers have wildly different model-list API shapes. OpenRouter's `/models` endpoint returns ~200+ model objects with complex pricing metadata; Anthropic's list is small and stable; Ollama's `/api/tags` returns locally-installed models only; Google's model listing requires a separate API; OpenAI's `/models` returns both LLM and non-LLM models mixed together.
 
 **Why it happens:**
-The existing `ConversationManager` is built around a sequential loop where one turn completes before the next begins. The abort/stop model assumes the currently-active controller is the one stream being aborted. Parallelism breaks this assumption: there is no single abort controller for "all parallel first-round calls."
+Developers implement the happy path (API returns list, dropdown populates) without building the failure path first. The shape diversity across providers is also underestimated — treating all five provider APIs as equivalent breaks on the first non-Anthropic test.
 
 **How to avoid:**
-- Allocate one `AbortController` per agent in the parallel round, stored as an array. Register the array in the `activeControllers` map under a composite key or replace the scalar controller with an array.
-- Before persisting any parallel-round response, check if the room status is still 'running' after the LLM call returns. Discard responses from rooms that were stopped mid-round.
-- Wrap all parallel-round DB inserts in a check: `if (aborted) return` before calling `db.insert`.
-- The sequential loop already exists and works. The parallel round is a single-round deviation at the start; after round 1, re-enter the existing sequential loop. Keep the parallel scope minimal.
+- Build fallback behavior first: if the model list fetch fails, fall back to a curated static list of known-good models per provider (the same models currently hardcoded in `DEFAULT_TEST_MODELS` and `AgentPresets.ts` are a good starting point).
+- Set a 5-second timeout on model list fetches. Do not let an unresponsive Ollama instance block the form.
+- Implement per-provider model list adapters with a shared interface: `{ id: string; name: string; contextWindow?: number }`. The transformation from raw API response to this shape happens inside the adapter, not in the UI component.
+- For Ollama specifically: the model list is empty if Ollama is not running locally. Show "No local models found — start Ollama first" rather than an empty dropdown.
+- For OpenRouter: filter the 200+ models list. Show only models that are not deprecated and have a non-null context window. Consider grouping by provider family.
+- The model picker does NOT need to be live-fetched on every form open. Fetch once when the provider changes, cache the result for the session.
 
 **Warning signs:**
-- `stop()` is called while the first round is in progress and messages still appear after the stop.
-- Two messages from different agents have identical `createdAt` timestamps (SQLite `unixepoch()` is second-resolution — two inserts within the same second get the same timestamp, breaking ordering).
-- Test: call `stop()` 200ms into a parallel round; verify zero messages persisted after the stop.
+- The model picker shows a loading spinner indefinitely when Ollama is not running.
+- The dropdown is empty for valid, configured providers.
+- The fetch for model list has no error boundary or timeout.
+- All five provider adapters are written as one `switch` statement with no shared interface.
 
-**Phase to address:** Parallel first round phase. Resolve the abort-during-parallel-round scenario before shipping.
+**Phase to address:** Model picker phase. Build the fallback static list before building the live fetch. Test with Ollama stopped.
 
 ---
 
-### Pitfall 3: Convergence Detection Fires on Sycophantic Agreement, Not Genuine Consensus
+### Pitfall 3: Presets Table Confusion — Static Presets vs. User-Created Presets
 
 **What goes wrong:**
-LLMs are trained to be agreeable. Research (ACL 2025, CONSENSAGENT) shows agents hit their lowest sycophancy in round 1 and become progressively more agreeable over time. An agent saying "I completely agree with Agent B's point" does not mean the conversation has converged on insight — it often means the agent is capitulating to social pressure. A naive convergence detector that looks for agreement phrases or semantic similarity between responses will fire after 3-4 turns and stop the conversation before it has produced any useful output.
-
-Additionally, agents agreeing on a wrong answer is a real failure mode: "coordinated incorrect convergence" is documented in multi-agent debate literature.
+The existing codebase already has a `AGENT_PRESETS` constant in `src/components/agents/AgentPresets.ts` with three hard-coded presets (Devil's Advocate, Code Reviewer, Researcher). The `agents` schema also has a `presetId` column. If the v1.2 milestone adds "agent presets CRUD" using a new database table, there are now two parallel systems: static in-code presets and user-created database presets. When the model picker or agent form asks "which presets exist?", it has to query both sources. If the developer forgets the static presets exist, the Agents page shows only user-created presets and the existing presets silently disappear.
 
 **Why it happens:**
-Convergence is genuinely hard to define. Semantic similarity measures (cosine, Jaccard) detect topical overlap but cannot distinguish "Agent B is covering the same topic" from "Agent B has accepted Agent A's conclusion." Phrase-matching ("I agree", "you're right") conflates social lubrication with epistemic agreement.
+The static `AGENT_PRESETS` array is in a component file with a non-obvious path. A developer scoping the new presets feature looks at the database schema, sees `presetId` as a column on `agents`, and assumes presets are already DB-backed — but they're not. The existing `presetId` values like `'devils-advocate'` are just strings that happen to match the hard-coded preset IDs.
 
 **How to avoid:**
-- Require at minimum N consecutive turns of agreement before declaring convergence (e.g., N=3), not just one turn. One "I agree" turn is not convergence.
-- Extend the existing Jaccard-based repetition detector: convergence requires *both* semantic similarity across agents AND low novelty (i.e., agents are not introducing new points). Track novelty separately from agreement.
-- Always gate convergence detection on a minimum number of turns (e.g., at least 6 total turns before convergence can fire). Premature convergence on short conversations is worse than no convergence detection.
-- Emit a `system` message when auto-stopping for convergence so the user understands why the conversation ended. Do not silently stop.
-- Allow the user to resume after convergence auto-stop, same as after repetition auto-pause.
+- Before designing the presets CRUD schema, decide: migrate static presets to database at startup, or keep them as static defaults and layer DB presets on top. The cleaner approach is to seed the static presets into the DB as system presets on first run (with a flag like `isSystem: true` to prevent deletion).
+- If a `presets` table is added, the seeding logic must run on app startup before any user interaction (in `src/db/index.ts` or a startup hook).
+- Do not create a new table named `agent_presets` if the agents table already has `presetId` — the relationship must be clear: is `presetId` a FK to the new table, or is it a string ID matching the static list?
+- Ensure the Agents page "Apply Preset" action works for both system presets and user-created presets through a unified API endpoint.
 
 **Warning signs:**
-- Convergence detection fires after only 2-3 turns.
-- The auto-stopped conversation ends with superficial agreement but no concrete insight or resolution in the final messages.
-- Agents converge on an obviously wrong or generic answer ("Both agree this is complex and requires further study").
+- The new `presets` table exists but the three existing presets from `AgentPresets.ts` are not in it.
+- `presetId` on the `agents` table is not updated to be a FK when the presets table is created.
+- Two separate API calls are needed to get all presets (one for static, one for DB).
 
-**Phase to address:** Convergence detection phase. Validate the threshold with actual conversations before treating it as production-ready.
+**Phase to address:** Presets CRUD phase. Audit `AgentPresets.ts` before writing a single line of schema code.
 
 ---
 
-### Pitfall 4: Timestamp Collision Breaks Message Ordering in Parallel Round
+### Pitfall 4: Schema Migration for `notes` Column Not Applied to Existing Database
 
 **What goes wrong:**
-The `messages` schema uses `createdAt INTEGER` with `default(sql`(unixepoch())`)`. SQLite's `unixepoch()` returns a Unix timestamp in **seconds**. Two messages inserted within the same second get the same `createdAt` value. In the sequential loop this is fine because inserts happen seconds apart. In a parallel first round, all agents complete and insert within a tight window — potentially within the same second. The MessageFeed renders messages in `createdAt` order, so two messages with the same timestamp render in arbitrary (insert-order, not guaranteed) sequence.
+Adding a `notes` column to the `agents` table requires a migration. The project uses Drizzle ORM with migrations generated to `src/db/migrations/`. If the developer updates `src/db/schema.ts` with the new column but does not generate and apply the migration, the app boots with a schema mismatch. Worse: the project's `src/db/index.ts` does not call `migrate()` on startup — it uses Drizzle with the schema directly. Any migration must be applied manually. If the developer forgets this and just edits the schema, `INSERT INTO agents` calls that include `notes` will fail with "table agents has no column notes."
 
 **Why it happens:**
-Second-resolution timestamps are invisible as a problem in sequential flows. The parallel case is new and the existing schema was never stress-tested for sub-second insert ordering.
+Drizzle's type system reflects the schema TypeScript definition, not the actual SQLite schema. TypeScript compiles fine, the app boots, and only the first insert or query involving the new column reveals the mismatch — often not in development if seed data does not exercise the new field.
 
 **How to avoid:**
-- Add a `turnNumber INTEGER` column to the `messages` schema, incremented per agent in the parallel round (agent at position 0 gets turn 0, position 1 gets turn 1, etc.). Use this as a tiebreaker in `ORDER BY createdAt ASC, turnNumber ASC`.
-- Alternative: change the timestamp to millisecond resolution using `Date.now()` in application code instead of SQLite's `unixepoch()`. Both approaches work; the turn-number approach is more explicit.
-- Migration required: add the column with `DEFAULT 0` so existing messages are unaffected.
+- Run `npx drizzle-kit generate` after updating `schema.ts` to produce the migration SQL file.
+- Apply the migration with `npx drizzle-kit migrate` against the actual `data/agents-room.db` file before starting the dev server.
+- Add the migration step to the development setup notes. This project has no auto-migration on startup, so it is always a manual step.
+- For the `notes` column specifically: add it as `text('notes')` (nullable, no default required). This is the lowest-risk schema change — nullable columns with no default never break existing rows.
+- When adding `presetId` as a FK (see Pitfall 3): this is higher risk because it changes the column from a bare string to a constrained FK. Test with existing agents that have `presetId: 'devils-advocate'` — the FK constraint will fail if the referenced presets table does not have that row.
 
 **Warning signs:**
-- On a page refresh after a parallel first round, the agent message order differs from the order they appeared during streaming.
-- Two messages show exactly the same timestamp in the message details.
+- TypeScript compiles cleanly but the dev server logs `SqliteError: table agents has no column notes` on any agent write.
+- The migration file in `src/db/migrations/` is outdated (timestamp older than last schema.ts modification).
+- `drizzle-kit generate` produces an empty diff (suggests the migration was already applied to a previous DB version that the tool is comparing against, but the actual DB file was never migrated).
 
-**Phase to address:** Parallel first round phase. Fix schema before implementing the parallel round logic.
+**Phase to address:** Agent notes phase — it is the first schema change in this milestone. Get the migration workflow right here before any other schema changes.
 
 ---
 
-### Pitfall 5: Cost Display Causes Anxiety Without Context
+### Pitfall 5: Moving the Providers UI Breaks Navigation and Orphans Settings
 
 **What goes wrong:**
-Raw dollar amounts for LLM costs look alarming without context. "$0.84 spent" on a conversation makes users feel like they're being charged significantly, even when the actual cost is trivially small relative to the value. Conversely, "$0.0003 per message" looks meaningless and users can't gauge whether they're spending a lot or a little. Neither framing helps the user understand their usage.
-
-More concretely: displaying cost as a running real-time number that ticks up during streaming creates psychological discomfort that wasn't there before. The app currently shows token counts, which are abstract; cost is concrete and triggers loss aversion.
+Moving provider management from the Settings page to a dedicated Providers page sounds simple (copy components, add a nav link, remove from Settings). In practice, three things break:
+1. Any existing bookmarks or direct navigation to the Settings page that expected to configure providers now finds them missing — the user sees an empty Settings page.
+2. If the Providers page URL is `/providers` and the Settings page URL is `/settings`, any link in the codebase that says "configure your API keys in Settings" is now wrong.
+3. The `providerKeys` store or fetch logic may be co-located with the Settings component. Moving the UI without moving the data layer means either the data is fetched twice (once for Providers page, once in residual Settings code) or not at all.
 
 **Why it happens:**
-Cost display is designed by engineers who know the costs are small, not by users experiencing the display for the first time. The information is technically correct but behaviorally counterproductive.
+UI migration is underestimated as a "just move the component" task. The side effects (navigation, copy/text, data fetching responsibility) are not obvious until the move is done.
 
 **How to avoid:**
-- Display cost as a session total, not a per-message real-time update. Let it update after each turn completes, not during streaming.
-- Show the cost in context: "$0.04 this conversation" rather than just "$0.04".
-- For the personal-tool use case, display "est." prefix on all figures to set expectation that these are approximate.
-- Do not make cost the most prominent element. It's a secondary metric. Token counts (already displayed) provide the abstract signal; cost is a gloss on top.
+- Before moving, `grep -r "Settings\|/settings\|providerKey"` across all component files to find every reference.
+- After moving, redirect `/settings` to `/providers` (or update all links) rather than leaving an empty Settings page.
+- Check whether provider data fetching lives in the Settings page component or in a shared hook/store. If it's in the component, the fetch logic must move with the UI.
+- The providers page needs its own `useEffect` fetch, not a dependency on Settings mounting.
+- Settings page should still exist if there are other settings (room defaults, theme, etc.). If provider management was the only thing in Settings, the Settings page may be removed entirely — but confirm this before deleting it.
 
 **Warning signs:**
-- The cost figure updates every token during streaming (causes visual jitter and anxiety).
-- The UI shows cost without the "est." qualifier, implying billing precision that a static pricing table cannot provide.
-- First-time use: the user's reaction to the cost display is surprise or concern rather than "useful to know."
+- The Providers page renders but shows no provider data (fetch not called on mount).
+- The Settings page still shows provider configuration controls after the move (duplicate UI).
+- Navigation links in the sidebar still point to `/settings` for provider configuration.
 
-**Phase to address:** Cost estimation phase. Test the display with realistic conversation costs before shipping.
+**Phase to address:** Dedicated Providers page phase. Do the grep audit before touching any component.
 
 ---
 
-### Pitfall 6: Conversation Quality Improvements That Break Existing Tests
+### Pitfall 6: `agentStore` Missing `updateAgent` — UI Updates Without Store Sync
 
 **What goes wrong:**
-Improving the system prompts injected by `ContextService.buildContext` — adding conversational anchors, role reminders, or quality-directing instructions — changes the exact string passed to `streamLLM`. Any test that asserts on the exact system prompt string will fail. More subtle: if quality improvement changes how `ContextService` builds the message array (e.g., filtering messages differently, inserting a quality-reminder at a specific position), the 121 existing passing tests may break in ways that are correct behavior but require test updates.
+The current `agentStore` (Zustand) has `fetchAgents`, `createAgent`, and `deleteAgent` — but no `updateAgent`. When the agent editing UI calls `PUT /api/agents/:agentId` successfully, the API updates the DB, but the local Zustand state still has the stale agent object. The Agents page re-renders with old values because the store was not updated. The user saves the edit, the form closes, and the card shows the old name/model/role. A page reload fixes it — but that is exactly the `window.location.reload()` anti-pattern already flagged as a tech debt in `PROJECT.md`.
 
 **Why it happens:**
-Tests for `ContextService` are written against the current implementation. When the implementation deliberately changes (improvement, not bug), tests fail as false negatives. The risk is: developer sees 10 failing tests and reverts the quality improvement thinking it broke something, when actually the tests just needed updating.
+The store was designed for create/delete flows (both of which modify the agents array length). Update is the missing third CRUD operation. It's easy to implement the API call without wiring the store update, especially if the developer tests by reloading the page.
 
 **How to avoid:**
-- Before any changes to `ContextService`, read the existing test file (`tests/conversation/context-service.test.ts`) and identify which assertions are about *exact output strings* vs. *structural properties* (e.g., "starts with user role", "contains the topic").
-- Structural assertions are valid and should be preserved. Exact string assertions should be updated to match the new quality-improved output.
-- Run the test suite before and after each quality change. A diff of failing tests is the work list.
-- If adding a new quality feature (e.g., "inject a quality directive every 5 turns"), test it in isolation before combining with other changes.
+- Add `updateAgent: (id: string, data: Partial<Agent>) => Promise<Agent>` to the `AgentStore` interface before building the edit UI.
+- The implementation pattern follows `createAgent`: call `PUT`, receive the updated agent from `returning()`, then use `set((s) => ({ agents: s.agents.map(a => a.id === id ? updated : a) }))`.
+- Never use `window.location.reload()` after an agent edit. The `PROJECT.md` already flags this as a tech debt on the room edit path — do not repeat it for agent edit.
+- Test the store update path explicitly: edit an agent, verify the card reflects the new values without a page reload.
 
 **Warning signs:**
-- More than 5 tests fail after a prompt wording change — likely means test strings were copy-pasted from old output.
-- The test failures are in `context-service.test.ts` and `manager.test.ts` simultaneously — means a shared behavior changed.
-- Tests pass but the quality behavior is not verified (no new tests were added for the new behavior).
+- Agent cards show stale values after editing until the page is reloaded.
+- The edit form uses `router.refresh()` or `window.location.reload()` after save.
+- `agentStore.ts` does not have an `updateAgent` export.
 
-**Phase to address:** Conversation quality phase. Test-first: read existing tests before touching `ContextService`.
+**Phase to address:** Agent editing phase. The store method is a prerequisite — implement it before the UI form.
 
 ---
 
-### Pitfall 7: Parallel First Round Changes the "First Message" Assumption in ContextService
+### Pitfall 7: Model Picker Selecting a Model the Provider Cannot Run
 
 **What goes wrong:**
-`ContextService.buildContext` has special handling for the first message: if the message history is empty or starts with an assistant turn, it injects the room topic as a seeding `user` message. This works correctly for the sequential loop where the first agent goes first. In a parallel first round, all agents call `buildContext` with an empty room history simultaneously. Every agent gets the same topic-seeded context, which is correct. But after the parallel round, the message history has multiple agent messages at position 0-N. On the first turn of the sequential loop after the parallel round, `buildContext` reads history that starts with multiple `agent` role messages — the "starts with assistant" case triggers and re-injects the topic, creating a duplicate topic injection visible in the context.
+A user opens the model picker, sees a list of models from OpenRouter (which proxies 200+ models), and selects one that requires a paid subscription tier they don't have, or an Anthropic model they don't have quota for. The model picker has no way to verify the model is runnable without actually making a test call. The agent is saved with that model. When the conversation starts, the first turn fails with a provider error (403, insufficient quota, model deprecated). The error surfaces as a failed turn in the conversation log — confusing because the failure is in a room, not in the provider config page.
 
 **Why it happens:**
-The existing seeding logic was designed for a single first message. When multiple messages exist from the start (all from the parallel round), the head-of-history check fires unexpectedly.
+Model listing APIs return all available models, not all models accessible with the current API key. Access control is enforced at inference time, not list time. The model picker UI has no way to distinguish "accessible" from "listed."
 
 **How to avoid:**
-- The seed injection condition should check whether the room topic has already appeared in the history, not just whether the first message has a `user` role.
-- Simpler: in the parallel round, explicitly insert a `user`-role "Discussion topic" system message to the DB before firing the parallel round. This becomes the actual first message in history, and `buildContext`'s existing logic works correctly because the history always starts with that user seed message.
-- The latter approach (explicit DB seed) is cleaner and requires no logic change to `ContextService`.
+- Surface the model picker error at agent save time, not conversation time, by optionally running a minimal test inference on model selection (same pattern as the existing `POST /api/providers/:provider/test` endpoint — extend it to accept a specific model).
+- If the test is too slow or too costly, at minimum validate that the provider is configured (status is 'verified' or 'configured') before allowing the agent to be saved.
+- Show a "Verify model" button on the agent edit form that fires a minimal test inference with the selected model. This is a better UX than silently failing in the room.
+- For the OpenRouter case: filter the model list to show only free-tier models when the user has not configured premium access, or add an "estimated cost" column in the picker so the user knows what they're selecting.
 
 **Warning signs:**
-- After a parallel first round, the first sequential turn's context has two consecutive "Discussion topic:" user messages.
-- Unit test: run `buildContext` against a history that starts with 3 agent messages and verify the topic is injected exactly once.
+- Agent is saved with a model, conversation starts, first turn error occurs with a 4xx response from the provider.
+- The provider test endpoint (`/api/providers/:provider/test`) does not accept a custom model — it only tests a default model.
+- The model picker shows all OpenRouter models including paid ones with no visual distinction.
 
-**Phase to address:** Parallel first round phase. Add this edge case to the acceptance criteria before shipping.
+**Phase to address:** Model picker phase. The "verify model" test path is part of the model picker feature, not an afterthought.
 
 ---
 
-### Pitfall 8: Tech Debt Cleanup Introduces Regressions via Incomplete Dead Code Removal
+### Pitfall 8: Preset Application Overwrites Fields the User Already Customized
 
 **What goes wrong:**
-`ConversationPanel.tsx` is documented as orphaned. If it is deleted without checking all import paths, any file that still imports it will throw a module-not-found error at build time. More insidiously: if a file imports it with a dynamic `import()` or if it's referenced in a barrel export, the error only appears at runtime, not build time. Fixing type errors in test files can also unintentionally change behavior if a type assertion was hiding a real type mismatch that existed in production code.
+A user creates an agent, customizes the name, avatar, and some prompt fields. They then click "Apply Preset" from the preset picker. The preset application overwrites all fields with the preset's values, including the name and avatar the user set. The user's customization is lost.
+
+Conversely, if the preset application is too conservative and only fills empty fields, a user who wants to fully reset to a preset's configuration cannot do so without clearing every field manually first.
 
 **Why it happens:**
-Dead code is rarely as dead as it appears. IDEs' "find usages" can miss dynamic imports, string-based requires, and indirect references through re-export files.
+The "apply preset" action has ambiguous semantics. Developers default to the simplest implementation (overwrite everything), which is destructive. Users expect smarter behavior (fill only empty fields, or ask which fields to overwrite).
 
 **How to avoid:**
-- Before deleting `ConversationPanel.tsx`: run `grep -r "ConversationPanel" src/` and check all results. Verify there are no dynamic imports.
-- Fix type errors in test files by fixing the actual type, not by casting with `as unknown as X`. Type casts in tests hide real problems.
-- After any dead code deletion, run `npm run build` to confirm no build errors before running tests. Build errors are faster to find than runtime errors.
-- Make type-error fixes and dead code removal separate commits from feature changes. This makes regressions attributable to specific changes.
+- Design the apply-preset action with explicit semantics: "Apply Preset" fills all fields from the preset. "Apply Preset (fill empty only)" fills only blank fields. The simpler approach: show a confirmation dialog listing which fields will be overwritten.
+- The minimum acceptable behavior: warn the user before overwriting non-empty fields. "This will replace your current name, role, and prompt. Continue?"
+- Presets should apply the provider and model fields too — this is the primary value of a preset (pre-configured provider/model pairing). Do not apply prompt fields but skip provider/model.
+- The `presetId` column on the `agents` row should be set to the preset's ID after applying, so the Agents page can show "based on Devil's Advocate" as a badge.
 
 **Warning signs:**
-- Running `tsc --noEmit` shows errors in files other than the one you just edited.
-- A test passes after changing it to use `as any` instead of fixing the underlying type.
-- The over-fetching fix (room detail endpoint) accidentally removes a field that another component was relying on.
+- "Apply Preset" button has no confirmation step.
+- After applying a preset, the agent's `presetId` column is still null.
+- The provider and model fields are not updated when a preset is applied (incomplete apply).
 
-**Phase to address:** Tech debt cleanup phase. Always precede cleanup with a grep scan and a build run.
+**Phase to address:** Presets CRUD phase. Define the apply semantics in the phase spec before implementing.
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts specific to v1.1 additions.
-
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Hardcode prices in TypeScript source constants | No config file needed | Prices stale within weeks; requires code change to update | Never — move to JSON config immediately |
-| Show $0.00 for unknown models instead of "—" | No fallback UI needed | Users think free models cost nothing; masks missing data | Never |
-| Skip the minimum-turns guard in convergence detection | Simpler implementation | Fires after 2 turns of politeness, stops productive conversations | Never |
-| Reuse the existing single AbortController for parallel round | No API change to ConversationManager | Cannot abort individual agents mid-parallel-round; stop() leaves orphaned responses | MVP only if parallel round is fire-and-forget with no stop path |
-| Use second-resolution timestamps for ordering | No schema change needed | Message order is non-deterministic within parallel-round inserts | Only if parallel round is artificially serialized (defeats the purpose) |
-| Overwrite PITFALLS.md from v1.0 with v1.1 content | Clean file | v1.0 pitfalls remain relevant as the foundation | Acceptable only if v1.0 pitfalls are preserved in a separate section |
+| Hardcode model lists per provider in the frontend | No API call needed | Lists go stale when providers add/deprecate models | Acceptable as fallback, not as primary path |
+| Skip `updateAgent` in store, use page reload instead | Saves 10 minutes | Perpetuates the `window.location.reload()` anti-pattern already flagged in PROJECT.md | Never — the store method costs 5 lines |
+| Make presets static-only (no DB table) | No migration needed | Cannot add user presets without a code deploy | Acceptable only if user-created presets are truly out of scope for v1.2 |
+| Overwrite all fields on "Apply Preset" with no confirmation | Simplest implementation | Destroys user customization; erodes trust | Never without a confirmation dialog |
+| Model picker with no fallback static list | Simpler code | Empty dropdown when provider is unreachable | Never — always have a static fallback |
+| Move provider management without updating all nav links | Faster move | Broken navigation; users lose muscle memory to find providers | Never — do the grep audit first |
 
 ---
 
 ## Integration Gotchas
 
-Specific to the new features being added.
-
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| OpenRouter cost | Assuming all models have the same per-token rate; some charge per-request minimums | Check OpenRouter's pricing page; some models have floor prices per call regardless of token count |
-| Ollama cost | Treating local models as "$0.00 cost" | Electricity and compute cost is real but unmeasurable; display "local model — no API cost" rather than $0.00 |
-| Vercel AI SDK `usage` field | Assuming `result.usage` is always populated | Some providers/models return `null` usage; the existing gateway already handles this but the cost layer must also guard against null |
-| Parallel `Promise.all` for LLM calls | Assuming all providers have equivalent concurrency limits | Anthropic allows high concurrency; Ollama is single-threaded locally; parallel round with a local Ollama agent is effectively sequential |
-| Convergence detection + LLM-selected speaker | Checking convergence after every turn and using that result to influence the LLM speaker selector | Run convergence check after each turn independently; do not feed convergence signal into the speaker selector prompt (creates circular dependency) |
+| Anthropic model list | Calling `anthropic.models.list()` and expecting a simple response | Anthropic's SDK `models.list()` returns a paginated response; call `.data` to get the array |
+| OpenAI model list | Showing all models including embeddings, whisper, dall-e | Filter `GET /v1/models` to only `gpt-*` models; `object: "model"` and `id.startsWith("gpt")` |
+| OpenRouter model list | Assuming every listed model is accessible with any API key | Some require pro subscription; display `pricing.prompt` cost per token to let users self-select |
+| Ollama model list | Calling `GET /api/tags` when Ollama is not running | Handle ECONNREFUSED — show "Ollama not running" message, fall back to empty list |
+| Google model list | Using Generative AI API to list models | The `genai.list_models()` endpoint includes non-chat models; filter for `generateContent` method support |
+| Drizzle migration | Editing `schema.ts` without running `drizzle-kit generate && drizzle-kit migrate` | Always run both commands against the actual DB file; Drizzle's type system is ahead of the DB |
 
 ---
 
@@ -227,21 +232,22 @@ Specific to the new features being added.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Computing cost on every token event during streaming | Cost UI jitters; unnecessary recalculations per token | Compute cost after `turn:end` when final token counts are known | Every streaming message |
-| Running Jaccard convergence check against all messages in room | Query time grows with conversation length | Apply convergence window (same as repetition window: last 5-6 messages) | After ~30 messages |
-| Parallel first round with 4+ agents on slow providers | UI appears frozen for 15-20s while all agents are "thinking" simultaneously | Show individual per-agent thinking indicators during parallel round, not a single global spinner | 3+ agents with >5s generation time |
-| Fetching pricing table from network on every cost calculation | Latency added to every turn, network dependency for local app | Bundle pricing config with the app; reload only on startup | Any network-dependent cost path |
+| Fetching model list on every keystroke in provider select | Rate limit errors; slow UI; excess API calls | Fetch once on provider change, cache in component state for the session | Immediately if provider list is dropdown-linked to model fetch |
+| Fetching all agent presets from DB on every agent form open | Slow form open on large preset collections | Presets change rarely; fetch once on page mount and cache in component state or store | After ~50 presets, noticeable delay |
+| Saving agent with `updatedAt: new Date()` but no migration | `SqliteError: no column updatedAt` | Always run migration before testing any save path | First agent edit attempt on existing DB |
+| Provider page loading all provider status + fetching model lists simultaneously | 5 concurrent API calls on page load | Lazy-load model lists only when the user expands a provider section | With 5 providers all fetching simultaneously |
 
 ---
 
 ## Security Mistakes
 
-Personal tool — attack surface is narrow. Pitfalls are operational, not adversarial.
+Personal tool — attack surface is narrow. These are operational safety concerns.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Pricing config file that can be edited by room topic input | Crafted topic causes path traversal to pricing file | Pricing data is read-only at startup; never written based on user input |
-| Displaying exact cost to the cent | User over-optimizes to "free" models, degrading conversation quality | Display as "est." to communicate imprecision; cost is informational, not billing |
+| Logging API keys in model-fetch error messages | Key exposed in server logs or browser console | Log provider name and error code only; never log the key or the full config object |
+| Displaying API key in plain text on the Providers page | Key visible on screen recording or shared screenshot | Show masked key: `sk-ant-api03-...****` with a "reveal" toggle; never full plain text |
+| Accepting arbitrary `baseUrl` for Ollama without validation | SSRF: attacker redirects Ollama to internal network | Validate `baseUrl` is `http://localhost:*` or `http://127.0.0.1:*`; the `saveProviderKeySchema` already uses `z.string().url()` but does not restrict to localhost |
 
 ---
 
@@ -249,25 +255,31 @@ Personal tool — attack surface is narrow. Pitfalls are operational, not advers
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Convergence auto-stop with no explanation message | User confused why conversation stopped early | Emit a system message: "[Auto-stopped: agents appear to have reached consensus]" with a resume option |
-| Cost figure updates during streaming (per-token) | Visual jitter; anxiety about cost growing in real time | Update cost only after `turn:end` event when final token count is known |
-| Parallel first round looks the same as sequential to the user | Value of parallel round is invisible | Consider a subtle UI indicator during the first round: "Independent responses..." |
-| Cost display with no pricing-date disclosure | User trusts stale estimate as accurate | Include a small "Pricing as of [date]" note near cost display |
-| Convergence stopped a conversation that wasn't actually done | User has no way to continue without losing context | Convergence auto-stop should pause (like repetition does), not stop — preserves resume path |
+| Agent edit form opens as a full page instead of a sheet/modal | User loses context of which agent they were editing | Open edit in a side sheet or modal, same pattern as the existing room config UI |
+| Model picker shows raw model IDs (e.g., `claude-sonnet-4-20250514`) | Users cannot distinguish between models by name | Show human-readable label alongside the ID: "Claude Sonnet 4 (claude-sonnet-4-20250514)" |
+| No indication that editing a global agent doesn't affect room agents | User edits agent, goes to room, confused why nothing changed | Show a banner on the agent edit form: "Room agents already using this template are not affected" |
+| Preset CRUD with no preview | User applies a preset without knowing what the prompt says | Show preset details (role, personality summary) in the preset picker before applying |
+| Provider page "Test Connection" button with no per-model test | User knows the key is valid but not if their chosen model is accessible | Add a "Test with selected model" option on the agent form; the existing provider test uses default models only |
+| Deleting a global agent while it is assigned to an active room | Room continues working (FK is `set null`) but the source reference is lost | Show a warning: "X rooms are currently using this agent. Deleting removes the library entry but does not affect running rooms." |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Cost estimation:** Shows a number — verify unknown models display "—" not "$0.00", and that Ollama shows "local model" not a number.
-- [ ] **Cost estimation:** Demo conversation looks right — verify the total accumulates correctly across all agents, including after a resume.
-- [ ] **Parallel first round:** Agents respond independently — verify calling `stop()` mid-parallel-round results in zero persisted messages from that round.
-- [ ] **Parallel first round:** Responses appear in UI — verify message ordering after the round is deterministic and matches agent positions.
-- [ ] **Convergence detection:** Fires after 10 turns of genuine agreement — verify it does NOT fire after 2-3 turns of polite agreement phrases.
-- [ ] **Convergence detection:** Stops conversation — verify it emits a system message explaining why and the room status is 'paused' (resumable), not 'idle'.
-- [ ] **Tech debt cleanup:** ConversationPanel.tsx deleted — verify `npm run build` passes with no module-not-found errors.
-- [ ] **Tech debt cleanup:** Type errors fixed — verify `tsc --noEmit` shows zero errors after fixes, and no `as any` casts were added.
-- [ ] **Quality improvements:** System prompt changes made — verify existing tests updated to match new output, and new tests added for new behavior.
+- [ ] **Agent editing:** Edit form saves — verify the Agents page shows updated values WITHOUT a page reload (store update confirmed).
+- [ ] **Agent editing:** Banner or note present — verify UI discloses that room agents are not affected by global edits.
+- [ ] **Agent editing:** `updatedAt` is updated on every save — verify the DB row has a new timestamp after edit.
+- [ ] **Model picker:** Provider is down — verify the picker shows a static fallback list, not an empty dropdown.
+- [ ] **Model picker:** Ollama not running — verify the picker shows "No local models" message, not a spinner.
+- [ ] **Model picker:** Model ID is saved correctly — verify the full model string (e.g., `claude-sonnet-4-20250514`) is stored, not a display label.
+- [ ] **Presets:** All three static presets from `AgentPresets.ts` appear in the preset picker without separate code paths.
+- [ ] **Presets:** Apply Preset has confirmation — verify no fields are overwritten without user acknowledgment when the agent already has non-empty values.
+- [ ] **Presets:** `presetId` column updated on agents table after applying a preset.
+- [ ] **Providers page:** No provider data visible — verify fetch is called on mount, not inherited from Settings.
+- [ ] **Providers page:** API key display — verify keys are masked, not shown in full.
+- [ ] **Agent notes:** Notes column exists in DB — verify `drizzle-kit migrate` was run against the actual `data/agents-room.db` file.
+- [ ] **Agent notes:** Notes saved — verify notes persist across page reloads (confirm they are in the DB row, not just local state).
+- [ ] **Schema migration:** `tsc --noEmit` and `npm run build` both pass after each schema change.
 
 ---
 
@@ -275,11 +287,12 @@ Personal tool — attack surface is narrow. Pitfalls are operational, not advers
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Stale pricing table discovered | LOW | Update the JSON config file with current prices; no code change required if config is external |
-| Convergence fires too aggressively (too many false positives) | LOW | Increase minimum-turns threshold; users can resume, conversations aren't lost |
-| Parallel round creates ordering bugs discovered in production | MEDIUM | Add `turnNumber` column via migration; reorder MessageFeed query |
-| Quality prompt changes broke existing tests | LOW | Update test assertions to match new output; no behavior regression, only output format |
-| Dead code deletion broke a build | LOW | Revert the deletion; add the missing file back; grep all imports before re-deleting |
+| Agent edit overwrites room agent data (cascade bug) | HIGH | Revert the migration and API code; room agents have FK to source agent but data is copied; no data loss if cascade did not run |
+| Model picker shows wrong models (stale static list) | LOW | Update the static fallback list; takes ~10 minutes; no migration needed |
+| Preset apply destroyed user's custom fields | MEDIUM | Add undo via optimistic rollback in the store; if not implemented, user must re-enter their customization |
+| Schema migration not applied — app crashes on agent edit | LOW | Run `npx drizzle-kit migrate`; app recovers immediately |
+| Provider page move broke navigation — users can't find providers | LOW | Add a redirect from `/settings` to `/providers`; takes 5 minutes |
+| Ollama `baseUrl` SSRF vulnerability | MEDIUM | Add a validator to `saveProviderKeySchema` that checks hostname is localhost; existing keys may need re-validation |
 
 ---
 
@@ -287,32 +300,30 @@ Personal tool — attack surface is narrow. Pitfalls are operational, not advers
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Stale hardcoded pricing | Cost estimation phase | Unknown model shows "—" in UI; pricing config file is separate from source code |
-| Parallel round abort during stop() | Parallel first round phase | stop() called mid-round results in zero persisted messages |
-| Timestamp collision in parallel round | Parallel first round phase | Message order after round is deterministic on page refresh |
-| ContextService topic double-injection | Parallel first round phase | Context for first sequential turn after parallel round has exactly one topic message |
-| False positive convergence on sycophancy | Convergence detection phase | Convergence requires minimum 6 turns before it can fire; test with polite-but-empty agreement |
-| Convergence stops instead of pauses | Convergence detection phase | Room status after convergence auto-stop is 'paused'; resume works |
-| Quality changes break existing tests | Conversation quality phase | Test suite passes after quality changes; no `as any` additions |
-| Dead code cleanup regressions | Tech debt cleanup phase | `tsc --noEmit` and `npm run build` both pass after cleanup |
-| Cost display anxiety | Cost estimation phase | Cost shows "est." prefix; updates only after turn:end, not per-token |
+| Global agent edit ≠ room agent update | Agent editing phase | Room agent fields unchanged after global edit; disclosure text present in UI |
+| Missing `updateAgent` in store | Agent editing phase | Agents page reflects edits without page reload |
+| Model picker no fallback on fetch failure | Model picker phase | Picker shows static list when provider API is unreachable |
+| Model picker model not accessible at inference | Model picker phase | "Verify model" test button present; conversation failure is surfaced early |
+| Static vs. DB presets confusion | Presets CRUD phase | All three existing presets appear in the picker without two separate code paths |
+| Preset apply overwrites without warning | Presets CRUD phase | Confirmation dialog shown when applying over non-empty fields |
+| `notes` column schema not migrated | Agent notes phase | `npm run build` passes; first agent save with notes does not throw SQLiteError |
+| Provider move breaks navigation | Dedicated Providers page phase | All links pointing to provider config go to `/providers`; Settings page redirects or is removed |
+| Providers page fetch not called on mount | Dedicated Providers page phase | Provider status loads on fresh page visit without visiting Settings first |
+| API key logged or displayed in plain text | Dedicated Providers page phase | Server logs contain no key strings; UI shows masked format |
 
 ---
 
 ## Sources
 
-- [CONSENSAGENT: Sycophancy Mitigation in Multi-Agent LLM Interactions — ACL 2025](https://aclanthology.org/2025.findings-acl.1141/)
-- [Peacemaker or Troublemaker: How Sycophancy Shapes Multi-Agent Debate — arXiv 2025](https://arxiv.org/pdf/2509.23055)
-- [Talk Isn't Always Cheap: Failure Modes in Multi-Agent Debate — arXiv 2025](https://arxiv.org/pdf/2509.05396)
-- [LLM API Pricing Comparison (March 2026) — costgoat.com](https://costgoat.com/compare/llm-api)
-- [LLM API Pricing (March 2026) — tldl.io](https://www.tldl.io/resources/llm-api-pricing-2026)
-- [SQLite concurrency and why you should care — Hacker News discussion](https://news.ycombinator.com/item?id=45781298)
-- [Understanding Better-SQLite3: The Fastest SQLite Library for Node.js — DEV Community](https://dev.to/lovestaco/understanding-better-sqlite3-the-fastest-sqlite-library-for-nodejs-4n8)
-- [Concurrent vs. Parallel Execution in LLM API Calls — Towards AI](https://towardsai.net/p/machine-learning/concurrent-vs-parallel-execution-in-llm-api-calls-from-an-ai-engineers-perspective)
-- [Selective agreement, not sycophancy: opinion dynamics in LLM interactions — Springer 2025](https://link.springer.com/article/10.1140/epjds/s13688-025-00579-1)
-- [Context Rot: How Increasing Input Tokens Impacts LLM Performance — Chroma Research](https://research.trychroma.com/context-rot)
-- Existing codebase inspection: `src/lib/conversation/manager.ts`, `context-service.ts`, `speaker-selector.ts`, `db/schema.ts`, `lib/sse/stream-registry.ts`
+- Codebase inspection: `src/db/schema.ts`, `src/components/agents/AgentPresets.ts`, `src/stores/agentStore.ts`, `src/app/api/agents/[agentId]/route.ts`, `src/app/api/providers/route.ts`, `src/app/api/providers/[provider]/test/route.ts`, `src/lib/llm/providers.ts`, `src/lib/validations.ts`
+- `PROJECT.md` key decisions table: `window.location.reload` flagged as tech debt on room edit path
+- Ollama API documentation: `GET /api/tags` for local model listing (official Ollama docs)
+- OpenRouter API: `/api/v1/models` endpoint returns full model catalog including access-controlled models
+- Anthropic Python SDK `models.list()` returns paginated response — confirmed in SDK source
+- OpenAI `/v1/models` endpoint returns mixed model types (embeddings, whisper, GPT) requiring client-side filtering
+- Drizzle ORM migration docs: schema changes require explicit `drizzle-kit generate` + `drizzle-kit migrate`; no auto-migration on startup
+- SSRF via `baseUrl` in Ollama provider: known pattern in any app that accepts user-supplied HTTP endpoints
 
 ---
-*Pitfalls research for: Agents Room v1.1 — adding cost estimation, parallel first round, convergence detection, and quality improvements to existing system*
-*Researched: 2026-03-20*
+*Pitfalls research for: Agents Room v1.2 — agent editing, model picker, presets CRUD, dedicated providers page, agent notes*
+*Researched: 2026-03-21*
