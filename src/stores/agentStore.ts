@@ -13,6 +13,7 @@ export interface Agent {
   model: string;
   temperature: number;
   presetId: string | null;
+  notes: string | null;
   createdAt: Date;
 }
 
@@ -23,6 +24,7 @@ interface AgentStore {
   loading: boolean;
   fetchAgents: () => Promise<void>;
   createAgent: (data: CreateAgentBody) => Promise<Agent>;
+  updateAgent: (id: string, data: Partial<Omit<Agent, 'id' | 'createdAt'>>) => Promise<Agent>;
   deleteAgent: (id: string) => Promise<void>;
 }
 
@@ -44,6 +46,19 @@ export const useAgentStore = create<AgentStore>((set) => ({
     const agent = await res.json();
     set((s) => ({ agents: [...s.agents, agent] }));
     return agent;
+  },
+  updateAgent: async (id, data) => {
+    const res = await fetch(`/api/agents/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to update agent');
+    const updated = await res.json();
+    set((s) => ({
+      agents: s.agents.map((a) => (a.id === id ? updated : a)),
+    }));
+    return updated;
   },
   deleteAgent: async (id) => {
     await fetch(`/api/agents/${id}`, { method: 'DELETE' });

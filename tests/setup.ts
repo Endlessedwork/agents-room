@@ -37,6 +37,7 @@ export function createTestDb() {
       model TEXT NOT NULL,
       temperature REAL NOT NULL DEFAULT 0.7,
       preset_id TEXT,
+      notes TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     )

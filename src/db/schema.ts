@@ -16,6 +16,7 @@ export const agents = sqliteTable('agents', {
   model: text('model').notNull(),
   temperature: real('temperature').notNull().default(0.7),
   presetId: text('preset_id'), // null = custom, named = from template
+  notes: text('notes'),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),

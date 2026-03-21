@@ -28,6 +28,7 @@ export const createAgentSchema = z.object({
   model: z.string().min(1),
   temperature: z.number().min(0).max(1).default(0.7),
   presetId: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 export const updateAgentSchema = createAgentSchema.partial();

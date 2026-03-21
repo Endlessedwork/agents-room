@@ -45,6 +45,7 @@ export async function POST(req: Request) {
         model: parsed.data.model,
         temperature: parsed.data.temperature,
         presetId: parsed.data.presetId ?? null,
+        notes: parsed.data.notes ?? null,
       })
       .returning();
 
