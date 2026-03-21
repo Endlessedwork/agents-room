@@ -95,13 +95,13 @@ describe('getModel — provider factory registry', () => {
       apiKey: 'test-key',
     });
     expect(model).toBeDefined();
-    expect(model.doGenerate).toBeDefined();
+    expect((model as any).doGenerate).toBeDefined();
   });
 
   it('returns LanguageModel for openai', () => {
     const model = getModel('openai', 'gpt-4o-mini', { apiKey: 'test-key' });
     expect(model).toBeDefined();
-    expect(model.doGenerate).toBeDefined();
+    expect((model as any).doGenerate).toBeDefined();
   });
 
   it('returns LanguageModel for google', () => {
@@ -109,7 +109,7 @@ describe('getModel — provider factory registry', () => {
       apiKey: 'test-key',
     });
     expect(model).toBeDefined();
-    expect(model.doGenerate).toBeDefined();
+    expect((model as any).doGenerate).toBeDefined();
   });
 
   it('returns LanguageModel for openrouter', () => {
@@ -119,13 +119,13 @@ describe('getModel — provider factory registry', () => {
       { apiKey: 'test-key' },
     );
     expect(model).toBeDefined();
-    expect(model.doGenerate).toBeDefined();
+    expect((model as any).doGenerate).toBeDefined();
   });
 
   it('returns LanguageModel for ollama (no apiKey needed)', () => {
     const model = getModel('ollama', 'llama3.2', {});
     expect(model).toBeDefined();
-    expect(model.doGenerate).toBeDefined();
+    expect((model as any).doGenerate).toBeDefined();
   });
 
   it('throws descriptive error for unknown provider', () => {
