@@ -34,7 +34,7 @@ Requirements for v1.1 milestone. Each maps to roadmap phases.
 ### Tech Debt
 
 - [x] **DEBT-01**: Remove orphaned ConversationPanel.tsx
-- [ ] **DEBT-02**: Fix test file TypeScript errors
+- [x] **DEBT-02**: Fix test file TypeScript errors
 - [x] **DEBT-03**: Narrow room detail endpoint to avoid over-fetching
 
 ## Future Requirements
@@ -82,7 +82,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PARA-02 | Phase 10 | Complete |
 | PARA-03 | Phase 10 | Complete |
 | DEBT-01 | Phase 11 | Complete |
-| DEBT-02 | Phase 11 | Pending |
+| DEBT-02 | Phase 11 | Complete |
 | DEBT-03 | Phase 11 | Complete |
 
 **Coverage:**

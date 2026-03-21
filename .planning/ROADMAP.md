@@ -29,7 +29,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 8: Cost Estimation** — Real-time estimated cost display per room using static model pricing (completed 2026-03-20)
 - [x] **Phase 9: Convergence Detection** — Auto-pause when agents reach genuine consensus, with system message explaining why (completed 2026-03-20)
 - [x] **Phase 10: Parallel First Round** — All agents respond independently in round 1 before seeing each other (completed 2026-03-21)
-- [ ] **Phase 11: Tech Debt Cleanup** — Remove dead code, fix type errors, narrow over-fetching endpoint
+- [x] **Phase 11: Tech Debt Cleanup** — Remove dead code, fix type errors, narrow over-fetching endpoint (completed 2026-03-21)
 
 ## Phase Details
 
@@ -98,7 +98,7 @@ Plans:
   1. `ConversationPanel.tsx` no longer exists in the codebase and `npm run build` passes cleanly
   2. `tsc --noEmit` reports zero errors across all test files with no `as any` casts added to silence them
   3. The room detail API endpoint does not return the full messages relation when no consumer requires it, confirmed by inspecting the response payload
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 11-01-PLAN.md — Delete orphaned ConversationPanel.tsx and narrow room detail endpoint
 - [ ] 11-02-PLAN.md — Fix test file TypeScript errors (AI SDK v6 type drift)
@@ -117,4 +117,4 @@ Plans:
 | 8. Cost Estimation | 2/2 | Complete   | 2026-03-20 | - |
 | 9. Convergence Detection | 2/2 | Complete   | 2026-03-20 | - |
 | 10. Parallel First Round | 3/3 | Complete    | 2026-03-21 | - |
-| 11. Tech Debt Cleanup | 1/2 | In Progress|  | - |
+| 11. Tech Debt Cleanup | 2/2 | Complete   | 2026-03-21 | - |

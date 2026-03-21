@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Conversation Quality & Polish
 status: unknown
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-21T06:59:27.808Z"
+stopped_at: Completed 11-02-PLAN.md (phase 11 complete)
+last_updated: "2026-03-21T07:02:18.387Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -47,6 +47,7 @@ Plan: 1 of 2
 | Phase 10-parallel-first-round P03 | 2min | 2 tasks | 8 files |
 | Phase 10-parallel-first-round P03 | 2min | 3 tasks | 8 files |
 | Phase 11-tech-debt-cleanup P01 | 5 | 1 tasks | 2 files |
+| Phase 11-tech-debt-cleanup P02 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Key v1.1 constraints from research:
 - [Phase 10-03]: ThinkingBubble suppressed during parallel round via !parallelRound condition; parallel banner uses animate-pulse for visual feedback
 - [Phase 10-parallel-first-round]: Task 3 human-verified: parallel first round UI works end-to-end including checkbox toggles and parallel thinking banner
 - [Phase 11-tech-debt-cleanup]: Remove messages: true from room detail GET — page.tsx RoomDetail interface never declared messages field, confirming unused over-fetching. Delete ConversationPanel.tsx entirely — zero import references confirmed via grep.
+- [Phase 11-02]: Cast model.doGenerate with (model as any) for AI SDK v6 LanguageModel union type — narrowest cast that fixes string branch incompatibility
+- [Phase 11-02]: Use as unknown as ReturnType<typeof streamLLM> at StreamTextResult mock boundaries — preserves intent while satisfying 27+ missing required fields
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T06:59:27.803Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-03-21T07:02:18.384Z
+Stopped at: Completed 11-02-PLAN.md (phase 11 complete)
 Resume file: None
