@@ -25,6 +25,140 @@ async function getProviderConfig(
   return { apiKey: row?.apiKey ?? undefined, baseUrl: row?.baseUrl ?? undefined };
 }
 
+/**
+ * Run the parallel first round: all agents independently build context and generate
+ * their opening responses before any message is persisted.
+ *
+ * Invariants:
+ *  - Promise.all for contexts happens BEFORE Promise.allSettled for LLM calls
+ *    (structural guarantee that no agent sees peers' responses)
+ *  - Abort check is AFTER Promise.allSettled — no partial persistence
+ *  - Messages persisted in agent position order (agents must be sorted by position)
+ *  - parallel:end emitted AFTER all turn:start/token/turn:end sequences
+ */
+async function runParallelRound(
+  roomId: string,
+  agents: (typeof schema.roomAgents.$inferSelect)[],
+  db: DrizzleDB,
+  controllers: Map<string, AbortController>,
+  turnLimit: number,
+): Promise<{ succeeded: boolean; turnsCompleted: number }> {
+  // 1. Emit parallel:start
+  emitSSE(roomId, 'parallel:start', { agentCount: agents.length });
+
+  // 2. Build ALL contexts BEFORE any LLM call (structural isolation guarantee)
+  const contexts = await Promise.all(
+    agents.map((agent) => ContextService.buildContext(db, roomId, agent, 0)),
+  );
+
+  // 3. Get provider configs for all agents
+  const configs = await Promise.all(agents.map((agent) => getProviderConfig(agent.provider, db)));
+
+  // 4. Create a shared abort controller for the parallel round, replacing the sentinel
+  const controller = new AbortController();
+  controllers.set(roomId, controller);
+
+  // 5. Run all LLM calls concurrently, capturing full text in memory
+  const settled = await Promise.allSettled(
+    agents.map(async (_agent, i) => {
+      let fullText = '';
+      let inputTokens: number | null = null;
+      let outputTokens: number | null = null;
+
+      const result = streamLLM({
+        provider: agents[i].provider as ProviderName,
+        model: agents[i].model,
+        config: configs[i],
+        system: contexts[i].systemPrompt,
+        messages: contexts[i].messages,
+        temperature: agents[i].temperature,
+        abortSignal: controller.signal,
+      });
+
+      for await (const chunk of result.textStream) {
+        fullText += chunk;
+      }
+
+      const usage = await result.usage;
+      inputTokens = usage?.inputTokens ?? null;
+      outputTokens = usage?.outputTokens ?? null;
+
+      return { fullText, inputTokens, outputTokens };
+    }),
+  );
+
+  // 6. Check abort AFTER allSettled — if aborted, discard everything
+  if (controller.signal.aborted) {
+    emitSSE(roomId, 'parallel:cancel', {});
+    controllers.delete(roomId);
+    return { succeeded: false, turnsCompleted: 0 };
+  }
+
+  // 7. Persist and emit in agent position order (agents are already sorted by position)
+  let turnsCompleted = 0;
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i];
+    const agent = agents[i];
+    if (outcome.status === 'fulfilled' && outcome.value.fullText.trim().length > 0) {
+      const { fullText, inputTokens, outputTokens } = outcome.value;
+
+      // Emit turn:start for this agent
+      emitSSE(roomId, 'turn:start', {
+        agentId: agent.id,
+        agentName: agent.name,
+        avatarColor: agent.avatarColor,
+        avatarIcon: agent.avatarIcon,
+        promptRole: agent.promptRole,
+        model: agent.model,
+        provider: agent.provider,
+        turnNumber: turnsCompleted + 1,
+        totalTurns: turnLimit,
+      });
+
+      // Emit all tokens at once (buffered, not streamed)
+      emitSSE(roomId, 'token', { agentId: agent.id, text: fullText });
+
+      // Persist message
+      const msgId = nanoid();
+      await db.insert(messages).values({
+        id: msgId,
+        roomId,
+        roomAgentId: agent.id,
+        role: 'agent',
+        content: fullText,
+        model: agent.model,
+        inputTokens,
+        outputTokens,
+      });
+
+      // Emit turn:end
+      emitSSE(roomId, 'turn:end', {
+        agentId: agent.id,
+        messageId: msgId,
+        inputTokens,
+        outputTokens,
+      });
+
+      turnsCompleted++;
+    }
+  }
+
+  // 8. Update lastActivityAt
+  if (turnsCompleted > 0) {
+    await db.update(rooms).set({ lastActivityAt: new Date() }).where(eq(rooms.id, roomId));
+  }
+
+  // 9. Emit parallel:end AFTER all turn events
+  emitSSE(roomId, 'parallel:end', {});
+
+  // 10. Clean up controller
+  if (controllers.get(roomId) === controller) {
+    controllers.delete(roomId);
+  }
+
+  return { succeeded: true, turnsCompleted };
+}
+
 export class ConversationManager {
   /**
    * Start the turn loop for a room. Fire-and-forget.
@@ -73,6 +207,24 @@ export class ConversationManager {
       let turnCount = 0;
 
       try {
+        // Parallel first round: all agents respond independently before seeing peers
+        if (room.parallelFirstRound && turnCount === 0) {
+          const parallelResult = await runParallelRound(
+            roomId,
+            agents,
+            db,
+            activeControllers,
+            turnLimit,
+          );
+          if (!parallelResult.succeeded) {
+            // Aborted or failed — exit turn loop
+            return;
+          }
+          turnCount = parallelResult.turnsCompleted;
+          // Re-register sentinel so sequential loop's double-start guard works correctly
+          activeControllers.set(roomId, new AbortController());
+        }
+
         while (turnCount < turnLimit) {
           // Re-check room status each iteration
           const currentRoom = await db.query.rooms.findFirst({ where: eq(rooms.id, roomId) });

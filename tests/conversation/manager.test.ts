@@ -449,40 +449,29 @@ describe('parallel first round', () => {
   });
 
   it('all contexts built before any LLM call', async () => {
-    // Enable parallel first round
     await db.update(rooms).set({ parallelFirstRound: true } as any).where(eq(rooms.id, roomId));
 
-    // We need to use raw SQL since Drizzle ORM maps boolean → integer
-    // Actually check if the field exists and update via raw SQLite pragma
-
-    const buildContextSpy = vi.spyOn(ContextService, 'buildContext');
     const streamCallOrder: string[] = [];
 
-    // Track when buildContext is called
-    buildContextSpy.mockImplementation(async (db, roomId, agent, turnCount) => {
-      streamCallOrder.push(`buildContext:${agent.name}`);
-      // Call through to original
-      buildContextSpy.mockRestore();
-      const result = await ContextService.buildContext(db, roomId, agent, turnCount);
-      buildContextSpy.mockImplementation(async (db, roomId, agent, turnCount) => {
+    // Spy on buildContext using callThrough pattern — wraps original without recursion
+    const originalBuildContext = ContextService.buildContext.bind(ContextService);
+    const buildContextSpy = vi
+      .spyOn(ContextService, 'buildContext')
+      .mockImplementation(async (db, roomId, agent, turnCount) => {
         streamCallOrder.push(`buildContext:${agent.name}`);
-        return ContextService.buildContext(db, roomId, agent, turnCount);
+        return originalBuildContext(db, roomId, agent, turnCount);
       });
-      return result;
-    });
 
     mockStreamLLM.mockImplementation(() => {
       streamCallOrder.push('streamLLM');
       return makeMockStream();
     });
 
-    // Update room to have parallelFirstRound=true using raw approach
-    // Drizzle maps boolean columns with mode:'boolean', so use the ORM field name
-    await db.update(rooms).set({ parallelFirstRound: true } as any).where(eq(rooms.id, roomId));
-
     await ConversationManager.start(roomId, db);
     await waitForMessages(db, roomId, 2);
     await waitForStatus(db, roomId, 'idle');
+
+    buildContextSpy.mockRestore();
 
     // Both buildContext calls should appear before first streamLLM call
     const firstStreamIndex = streamCallOrder.indexOf('streamLLM');
@@ -490,12 +479,13 @@ describe('parallel first round', () => {
       .map((entry, i) => (entry.startsWith('buildContext:') ? i : -1))
       .filter((i) => i >= 0);
 
+    // At minimum 2 buildContext calls (one per agent in parallel round)
     expect(buildContextIndices.length).toBeGreaterThanOrEqual(2);
-    if (firstStreamIndex !== -1) {
-      buildContextIndices.forEach((idx) => {
-        expect(idx).toBeLessThan(firstStreamIndex);
-      });
-    }
+    // All buildContext calls come before the first streamLLM call
+    expect(firstStreamIndex).toBeGreaterThan(-1);
+    buildContextIndices.slice(0, 2).forEach((idx) => {
+      expect(idx).toBeLessThan(firstStreamIndex);
+    });
   });
 
   it('messages persisted in agent position order', async () => {
