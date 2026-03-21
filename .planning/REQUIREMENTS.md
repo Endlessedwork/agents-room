@@ -16,9 +16,9 @@ Requirements for Agent Management milestone. Each maps to roadmap phases.
 ### Model Selection
 
 - [x] **MODL-01**: User can select model from a dropdown populated by the provider's available models
-- [ ] **MODL-02**: Model picker includes search/filter for large model lists (OpenRouter 400+)
-- [ ] **MODL-03**: Model picker falls back to free-text input when provider API is unreachable
-- [ ] **MODL-04**: Provider connection status (connected/not configured) shown next to provider select
+- [x] **MODL-02**: Model picker includes search/filter for large model lists (OpenRouter 400+)
+- [x] **MODL-03**: Model picker falls back to free-text input when provider API is unreachable
+- [x] **MODL-04**: Provider connection status (connected/not configured) shown next to provider select
 - [x] **MODL-05**: Model capabilities shown as tags when available from provider API (e.g. vision, large context)
 
 ### Agent Presets
@@ -68,9 +68,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EDIT-02 | Phase 13 | Complete |
 | EDIT-03 | Phase 13 | Complete |
 | MODL-01 | Phase 14 | Complete |
-| MODL-02 | Phase 14 | Pending |
-| MODL-03 | Phase 14 | Pending |
-| MODL-04 | Phase 14 | Pending |
+| MODL-02 | Phase 14 | Complete |
+| MODL-03 | Phase 14 | Complete |
+| MODL-04 | Phase 14 | Complete |
 | MODL-05 | Phase 14 | Complete |
 | PRST-01 | Phase 15 | Pending |
 | PRST-02 | Phase 15 | Pending |
