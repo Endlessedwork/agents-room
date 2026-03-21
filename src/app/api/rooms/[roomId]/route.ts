@@ -16,7 +16,6 @@ export async function GET(
       where: eq(rooms.id, roomId),
       with: {
         roomAgents: true,
-        messages: true,
       },
     });
 
