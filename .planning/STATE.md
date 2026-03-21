@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Agent Management
 status: unknown
-stopped_at: Phase 14 context gathered
-last_updated: "2026-03-21T15:15:42.454Z"
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-03-21T16:10:18.244Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Agents must have meaningful conversations that produce genuinely useful insights — the room is only valuable if agent collaboration yields better outcomes than talking to one agent alone
-**Current focus:** Phase 13 — agent-editing
+**Current focus:** Phase 14 — providers-page-model-picker
 
 ## Current Position
 
-Phase: 13 (agent-editing) — EXECUTING
-Plan: 1 of 1
+Phase: 14 (providers-page-model-picker) — EXECUTING
+Plan: 1 of 3
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Plan: 1 of 1
 *Updated after each plan completion*
 | Phase 12 P02 | 8 | 1 tasks | 2 files |
 | Phase 13-agent-editing P01 | 3 | 1 tasks | 3 files |
+| Phase 14-providers-page-model-picker P01 | 92 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,7 @@ Key v1.2 decisions to carry forward:
 - [Phase 12]: Notes textarea placed after Constraints section in AgentForm to keep prompt-config fields grouped
 - [Phase 12]: line-clamp-3 used for notes on AgentCard (vs line-clamp-2 for promptRole) for more visible note text
 - [Phase 13-agent-editing]: AgentForm dual-mode via initialData prop; Drizzle text() cast as unknown as Agent for provider union type; biome.json schema mismatch is pre-existing out-of-scope issue
+- [Phase 14-01]: Settings page replaced with server component redirect to /providers; Sidebar uses KeyRound icon linking /providers
 
 ### Pending Todos
 
@@ -80,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T15:15:42.451Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-providers-page-model-picker/14-CONTEXT.md
+Last session: 2026-03-21T16:10:18.241Z
+Stopped at: Completed 14-01-PLAN.md
+Resume file: None

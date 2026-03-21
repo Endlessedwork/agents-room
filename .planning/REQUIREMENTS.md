@@ -30,8 +30,8 @@ Requirements for Agent Management milestone. Each maps to roadmap phases.
 
 ### Provider Management
 
-- [ ] **PROV-01**: Dedicated /providers page with full CRUD for provider API keys
-- [ ] **PROV-02**: Provider management moved out of Settings page
+- [x] **PROV-01**: Dedicated /providers page with full CRUD for provider API keys
+- [x] **PROV-02**: Provider management moved out of Settings page
 
 ### Agent Notes
 
@@ -76,8 +76,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PRST-02 | Phase 15 | Pending |
 | PRST-03 | Phase 15 | Pending |
 | PRST-04 | Phase 15 | Pending |
-| PROV-01 | Phase 14 | Pending |
-| PROV-02 | Phase 14 | Pending |
+| PROV-01 | Phase 14 | Complete |
+| PROV-02 | Phase 14 | Complete |
 | NOTE-01 | Phase 12 | Complete |
 | NOTE-02 | Phase 12 | Complete |
 
