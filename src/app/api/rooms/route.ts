@@ -48,6 +48,7 @@ export async function POST(req: Request) {
         topic: parsed.data.topic ?? null,
         turnLimit: parsed.data.turnLimit,
         speakerStrategy: parsed.data.speakerStrategy,
+        parallelFirstRound: parsed.data.parallelFirstRound,
       })
       .returning();
 

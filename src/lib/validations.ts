@@ -5,6 +5,7 @@ export const createRoomSchema = z.object({
   topic: z.string().max(280).optional(),
   turnLimit: z.number().int().min(5).max(100).default(20),
   speakerStrategy: z.enum(['round-robin', 'llm-selected']).default('round-robin'),
+  parallelFirstRound: z.boolean().default(false),
 });
 
 export const updateRoomSchema = z.object({
@@ -12,6 +13,7 @@ export const updateRoomSchema = z.object({
   topic: z.string().max(280).optional(),
   turnLimit: z.number().int().min(5).max(100).optional(),
   speakerStrategy: z.enum(['round-robin', 'llm-selected']).optional(),
+  parallelFirstRound: z.boolean().optional(),
 });
 
 export const createAgentSchema = z.object({
