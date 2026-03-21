@@ -130,4 +130,4 @@ Plans:
 | 12. Agent Notes + Store Foundation | 2/2 | Complete    | 2026-03-21 | - |
 | 13. Agent Editing | 1/1 | Complete    | 2026-03-21 | - |
 | 14. Providers Page + Model Picker | 3/3 | Complete    | 2026-03-21 | - |
-| 15. Presets CRUD | 2/2 | Complete   | 2026-03-21 | - |
+| 15. Presets CRUD | 2/2 | Complete    | 2026-03-21 | - |
