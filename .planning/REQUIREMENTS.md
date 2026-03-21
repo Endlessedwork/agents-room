@@ -64,28 +64,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EDIT-01 | — | Pending |
-| EDIT-02 | — | Pending |
-| EDIT-03 | — | Pending |
-| MODL-01 | — | Pending |
-| MODL-02 | — | Pending |
-| MODL-03 | — | Pending |
-| MODL-04 | — | Pending |
-| MODL-05 | — | Pending |
-| PRST-01 | — | Pending |
-| PRST-02 | — | Pending |
-| PRST-03 | — | Pending |
-| PRST-04 | — | Pending |
-| PROV-01 | — | Pending |
-| PROV-02 | — | Pending |
-| NOTE-01 | — | Pending |
-| NOTE-02 | — | Pending |
+| EDIT-01 | Phase 13 | Pending |
+| EDIT-02 | Phase 13 | Pending |
+| EDIT-03 | Phase 13 | Pending |
+| MODL-01 | Phase 14 | Pending |
+| MODL-02 | Phase 14 | Pending |
+| MODL-03 | Phase 14 | Pending |
+| MODL-04 | Phase 14 | Pending |
+| MODL-05 | Phase 14 | Pending |
+| PRST-01 | Phase 15 | Pending |
+| PRST-02 | Phase 15 | Pending |
+| PRST-03 | Phase 15 | Pending |
+| PRST-04 | Phase 15 | Pending |
+| PROV-01 | Phase 14 | Pending |
+| PROV-02 | Phase 14 | Pending |
+| NOTE-01 | Phase 12 | Pending |
+| NOTE-02 | Phase 12 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-21*
-*Last updated: 2026-03-21 after initial definition*
+*Last updated: 2026-03-21 after roadmap creation*
