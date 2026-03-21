@@ -58,6 +58,7 @@ export function RoomWizard() {
   const [step1Errors, setStep1Errors] = useState<Record<string, string>>({});
   const [turnLimit, setTurnLimit] = useState<number>(20);
   const [speakerStrategy, setSpeakerStrategy] = useState<'round-robin' | 'llm-selected'>('round-robin');
+  const [parallelFirstRound, setParallelFirstRound] = useState(false);
 
   // Step 2 state
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -125,6 +126,7 @@ export function RoomWizard() {
           topic: topic.trim() || undefined,
           turnLimit,
           speakerStrategy,
+          parallelFirstRound,
         }),
       });
       const room = await roomRes.json();
@@ -264,6 +266,24 @@ export function RoomWizard() {
               Round-robin cycles through agents in order. LLM-selected uses AI to pick the next speaker.
             </p>
           </div>
+          {/* Parallel first round */}
+          <div>
+            <div className="flex items-center gap-3 mt-4">
+              <input
+                type="checkbox"
+                id="parallel-first-round"
+                checked={parallelFirstRound}
+                onChange={(e) => setParallelFirstRound(e.target.checked)}
+                className="w-4 h-4 rounded border-border"
+              />
+              <label htmlFor="parallel-first-round" className="text-sm font-medium">
+                Parallel first round
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              All agents independently form their initial response before seeing each other.
+            </p>
+          </div>
           <Button onClick={handleStep1Next}>Next</Button>
         </div>
       )}
@@ -369,6 +389,9 @@ export function RoomWizard() {
                   {speakerStrategy === 'round-robin' ? 'Round-Robin' : 'LLM-Selected'}
                 </span>
               </p>
+              {parallelFirstRound && (
+                <span className="text-sm text-muted-foreground">Parallel first round enabled</span>
+              )}
             </div>
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">

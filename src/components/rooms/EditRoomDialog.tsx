@@ -25,6 +25,7 @@ interface EditRoomDialogProps {
   roomId: string;
   currentTurnLimit: number;
   currentSpeakerStrategy: 'round-robin' | 'llm-selected';
+  currentParallelFirstRound: boolean;
   disabled?: boolean;
   onSaved?: (updated: { turnLimit: number; speakerStrategy: string }) => void;
 }
@@ -33,12 +34,14 @@ export function EditRoomDialog({
   roomId,
   currentTurnLimit,
   currentSpeakerStrategy,
+  currentParallelFirstRound,
   disabled = false,
   onSaved,
 }: EditRoomDialogProps) {
   const [open, setOpen] = useState(false);
   const [turnLimit, setTurnLimit] = useState(currentTurnLimit);
   const [speakerStrategy, setSpeakerStrategy] = useState<string>(currentSpeakerStrategy);
+  const [parallelFirstRound, setParallelFirstRound] = useState(currentParallelFirstRound);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +51,7 @@ export function EditRoomDialog({
       // Reset to current values when opening
       setTurnLimit(currentTurnLimit);
       setSpeakerStrategy(currentSpeakerStrategy);
+      setParallelFirstRound(currentParallelFirstRound);
       setError(null);
     }
   }
@@ -59,7 +63,7 @@ export function EditRoomDialog({
       const res = await fetch(`/api/rooms/${roomId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ turnLimit, speakerStrategy }),
+        body: JSON.stringify({ turnLimit, speakerStrategy, parallelFirstRound }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -140,6 +144,25 @@ export function EditRoomDialog({
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
               Round-robin cycles through agents in order. LLM-selected uses AI to pick the next speaker.
+            </p>
+          </div>
+
+          {/* Parallel first round */}
+          <div>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="edit-parallel-first-round"
+                checked={parallelFirstRound}
+                onChange={(e) => setParallelFirstRound(e.target.checked)}
+                className="w-4 h-4 rounded border-border"
+              />
+              <label htmlFor="edit-parallel-first-round" className="text-sm font-medium">
+                Parallel first round
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              All agents independently form their initial response before seeing each other.
             </p>
           </div>
         </div>

@@ -14,6 +14,7 @@ interface ChatHeaderProps {
     topic: string | null;
     turnLimit: number;
     speakerStrategy: 'round-robin' | 'llm-selected';
+    parallelFirstRound?: boolean;
     status: 'idle' | 'running' | 'paused';
   };
 }
@@ -143,6 +144,7 @@ export function ChatHeader({ room }: ChatHeaderProps) {
           roomId={room.id}
           currentTurnLimit={room.turnLimit}
           currentSpeakerStrategy={room.speakerStrategy}
+          currentParallelFirstRound={room.parallelFirstRound ?? false}
           disabled={roomStatus === 'running' || roomStatus === 'paused'}
           onSaved={() => window.location.reload()}
         />

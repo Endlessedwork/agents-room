@@ -24,6 +24,7 @@ interface ChatViewProps {
     status: 'idle' | 'running' | 'paused';
     turnLimit: number;
     speakerStrategy: 'round-robin' | 'llm-selected';
+    parallelFirstRound?: boolean;
     roomAgents: RoomAgent[];
   };
 }

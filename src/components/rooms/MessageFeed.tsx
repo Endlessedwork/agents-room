@@ -12,6 +12,7 @@ export function MessageFeed() {
   const streaming = useChatStore((s) => s.streaming);
   const summary = useChatStore((s) => s.summary);
   const summaryLoading = useChatStore((s) => s.summaryLoading);
+  const parallelRound = useChatStore((s) => s.parallelRound);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -64,8 +65,15 @@ export function MessageFeed() {
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {/* Thinking indicator: streaming started but no text yet */}
-        {streaming && streaming.text === '' && (
+        {/* Parallel round indicator: replaces ThinkingBubble during parallel round */}
+        {parallelRound && (
+          <div className="w-full text-center py-3 px-4 bg-muted/50 text-muted-foreground text-sm rounded my-2 animate-pulse">
+            Agents forming independent views...
+          </div>
+        )}
+
+        {/* Thinking indicator: streaming started but no text yet (NOT during parallel round) */}
+        {!parallelRound && streaming && streaming.text === '' && (
           <ThinkingBubble
             agentName={streaming.agentName}
             avatarColor={streaming.avatarColor}
