@@ -60,6 +60,10 @@ Global `agents` table = template library. When assigned to a room, all fields ar
 - `agentStore` — global agent library
 - `presetStore` — preset configurations (room templates with pre-assigned agents)
 
+### Routing
+
+Next.js App Router. `(dashboard)` route group wraps the main UI pages. API routes under `src/app/api/`.
+
 ### Database
 
 Drizzle ORM + SQLite (better-sqlite3, WAL mode). Schema in `src/db/schema.ts`.
@@ -77,6 +81,15 @@ Cost estimation: `src/lib/pricing.ts` uses `llm-info` for static model pricing. 
 
 - **No `.env` required** — provider API keys are stored in SQLite (`providerKeys` table), configured via the web UI
 - All config is in-database, not environment variables
+- SQLite DB auto-created at `data/agents-room.db` (relative to cwd). WAL mode + foreign keys enabled on init.
+- Next.js uses `output: 'standalone'` — production builds produce a self-contained `server.js`
+
+### Docker
+
+```bash
+docker build -t agents-room .       # Multi-stage build (node:22-alpine)
+docker run -p 3000:3000 -v ./data:/app/data agents-room  # Mount data/ for persistent DB
+```
 
 ## Code Style
 
